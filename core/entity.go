@@ -1,7 +1,7 @@
 package core
 
 import (
-	"game-engine/core/util"
+	"game-engine/util"
 	"reflect"
 )
 
@@ -26,11 +26,14 @@ type Entity struct {
 	level            Level
 }
 
-func NewEntity(level Level, name, tag string, id int) *Entity {
+var ids int = 0
+
+func NewEntity(level Level, name, tag string) *Entity {
+	ids++
 	return &Entity{
 		attributes: util.NewBitset(3),
 		level:      level,
-		id:         id,
+		id:         ids,
 	}
 }
 
@@ -63,14 +66,13 @@ func (e *Entity) Attribute(attr EntityAttribute) bool {
 }
 
 func (e *Entity) AddComponent(comp Component) Component {
-	updatable, result := comp.(UpdatableComponent)
-	if result {
+	if updatable, result := comp.(UpdatableComponent); result {
 		e.updateComponents = append(e.updateComponents, updatable)
 	}
-	if comp.(*Transform) != nil {
-		e.transform = comp.(*Transform)
-	} else if comp.(*Transform) != nil {
-		e.transform = comp.(*Transform)
+	if transform, result := comp.(*Transform); result {
+		e.transform = transform
+	} else if collider, result := comp.(*Collider); result {
+		e.collider = collider
 	}
 
 	e.components = append(e.components, comp)

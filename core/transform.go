@@ -1,6 +1,8 @@
 package core
 
-import "game-engine/core/math64/vector3"
+import (
+	"game-engine/math64/vector3"
+)
 
 type Transform struct {
 	BaseComponent

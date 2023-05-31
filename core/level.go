@@ -17,7 +17,7 @@ type BaseLevel struct {
 
 func NewBaseLevel() *BaseLevel {
 	b := &BaseLevel{}
-	b.entity = NewEntity(b, "level", "", 0)
+	b.entity = NewEntity(b, "level", "")
 	b.entities = make(map[int]*Entity)
 	return b
 }
@@ -27,7 +27,7 @@ func (b *BaseLevel) AddLevelComponent(comp Component) {
 }
 
 func (b *BaseLevel) CreateEntity(name, tag string) *Entity {
-	entity := NewEntity(b, name, tag, 0)
+	entity := NewEntity(b, name, tag)
 	return entity
 }
 

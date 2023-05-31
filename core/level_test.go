@@ -1,7 +1,7 @@
 package core
 
 import (
-	"game-engine/core/math64/vector3"
+	"game-engine/math64/vector3"
 	"testing"
 )
 
