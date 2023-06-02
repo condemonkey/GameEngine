@@ -146,6 +146,9 @@ func (e *Entity) Name() string {
 	return e.name
 }
 
+func (e *Entity) Awake() {
+	e.awake()
+}
 func (e *Entity) awake() {
 	for _, comp := range e.components {
 		comp.Awake()
@@ -155,6 +158,15 @@ func (e *Entity) awake() {
 }
 
 func (e *Entity) update(dt int) {
+	if !e.active {
+		return
+	}
+	for _, comp := range e.updateComponents {
+		comp.Update(dt)
+	}
+}
+
+func (e *Entity) Update(dt int) {
 	if !e.active {
 		return
 	}

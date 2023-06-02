@@ -69,3 +69,7 @@ func (b *BaseComponent) Entity() *Entity {
 func (b *BaseComponent) Transform() *Transform {
 	return b.entity.Transform()
 }
+
+func (b *BaseComponent) Collider() *Collider {
+	return b.entity.Collider()
+}

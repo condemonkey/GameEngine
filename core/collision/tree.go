@@ -3,7 +3,15 @@ package collision
 import (
 	"game-engine/math64/vector3"
 	"game-engine/util"
+	g3ncore "github.com/g3n/engine/core"
+	"github.com/g3n/engine/graphic"
 )
+
+type Graphic struct {
+	scene *g3ncore.Node
+	mesh  *graphic.Mesh
+	box   *graphic.Mesh
+}
 
 type BVTreeNode struct {
 	pool     *util.PoolNode
@@ -12,22 +20,18 @@ type BVTreeNode struct {
 	right    *BVTreeNode
 	collider Collider // Collider
 	fatAabb  AABB
-}
-
-func (b *BVTree) NewNodeWithEncapsulate(a0 *AABB, a1 *AABB) *BVTreeNode {
-	node := b.allocator.Pop()
-	node.fatAabb = *AABBEncapsulate(a0, a1)
-	return node
+	graphic  graphic.Graphic
 }
 
 func (b *BVTree) NewNodeWithAABB(aabb *AABB) *BVTreeNode {
-	node := b.allocator.Pop()
+	node := b.nodes.Pop()
+	node.collider = nil
 	node.fatAabb = *aabb
 	return node
 }
 
-func (b *BVTree) NewNodeWithShape(collider Collider) *BVTreeNode {
-	node := b.allocator.Pop()
+func (b *BVTree) NewNodeWithCollider(collider Collider) *BVTreeNode {
+	node := b.nodes.Pop()
 	node.fatAabb = *collider.FatAABB()
 	node.collider = collider
 	return node
@@ -72,12 +76,12 @@ func (n *BVTreeNode) SwapOutChild(oldChild *BVTreeNode, newChild *BVTreeNode) {
 }
 
 // 풀링
-func (p *BVTreeNode) Node() *util.PoolNode {
-	return p.pool
+func (n *BVTreeNode) Node() *util.PoolNode {
+	return n.pool
 }
 
-func (p *BVTreeNode) SetNode(node *util.PoolNode) {
-	p.pool = node
+func (n *BVTreeNode) SetNode(node *util.PoolNode) {
+	n.pool = node
 }
 
 // 스레드 세이프 안함
@@ -85,14 +89,14 @@ type BVTree struct {
 	//	CollisionUtil::ColliderPairSet colliderPairSet;
 	//std::unordered_map<class Collider*, BVTreeNode*> colNodeMap;
 	root      *BVTreeNode
-	allocator *util.Pool[*BVTreeNode]
+	nodes     *util.Pool[*BVTreeNode]
 	colliders map[Collider]*BVTreeNode
 	cache     *util.Queue[*BVTreeNode]
 }
 
 func NewBVTree() *BVTree {
 	tree := &BVTree{
-		allocator: util.NewPool[*BVTreeNode](2048, func() *BVTreeNode { return &BVTreeNode{} }),
+		nodes:     util.NewPool[*BVTreeNode](2048, func() *BVTreeNode { return &BVTreeNode{} }),
 		cache:     util.NewQueue[*BVTreeNode](),
 		colliders: make(map[Collider]*BVTreeNode),
 	}
@@ -100,7 +104,7 @@ func NewBVTree() *BVTree {
 }
 
 func (b *BVTree) AddCollider(collider Collider) {
-	node := b.NewNodeWithShape(collider)
+	node := b.NewNodeWithCollider(collider)
 	b.colliders[collider] = node
 	b.addNode(node)
 }
@@ -132,14 +136,14 @@ func (b *BVTree) addNode(newNode *BVTreeNode) {
 		//fmt.Println("call addnoe lieaf", rightcnt, lefcnt)
 		if cur == b.root {
 			// cur is root
-			b.root = b.NewNodeWithEncapsulate(&cur.fatAabb, &newAABB)
+			b.root = b.NewNodeWithAABB(AABBEncapsulate(&cur.fatAabb, &newAABB))
 			cur.parent = b.root
 			newNode.parent = b.root
 			b.root.left = cur
 			b.root.right = newNode
 		} else {
 			// cur is actual leaf, convert cur to branch
-			newBranch := b.NewNodeWithEncapsulate(&cur.fatAabb, &newNode.fatAabb)
+			newBranch := b.NewNodeWithAABB(AABBEncapsulate(&cur.fatAabb, &newNode.fatAabb))
 			newBranch.parent = cur.parent
 			cur.parent.SwapOutChild(cur, newBranch)
 			cur.parent = newBranch
@@ -170,7 +174,7 @@ func (b *BVTree) removeNode(node *BVTreeNode, deleteNode bool) {
 			newRoot = b.root.left
 		}
 
-		b.allocator.Push(b.root)
+		b.nodes.Push(b.root)
 		b.root = newRoot
 		b.root.parent = nil
 	} else {
@@ -186,8 +190,7 @@ func (b *BVTree) removeNode(node *BVTreeNode, deleteNode bool) {
 			grandParent.SwapOutChild(parent, parent.left)
 		}
 
-		b.allocator.Push(parent)
-
+		b.nodes.Push(parent)
 		cur := grandParent
 		for cur != nil {
 			cur.UpdateBranchAABB()
@@ -196,7 +199,7 @@ func (b *BVTree) removeNode(node *BVTreeNode, deleteNode bool) {
 	}
 
 	if deleteNode {
-		b.allocator.Push(node)
+		b.nodes.Push(node)
 	}
 }
 
@@ -251,7 +254,7 @@ func (b *BVTree) Update() {
 	}
 }
 
-func (b *BVTree) UpdateCollider(collider Collider) bool {
+func (b *BVTree) RelocateCollider(collider Collider) bool {
 	node := b.colliders[collider]
 	if node == nil {
 		panic("")
@@ -262,6 +265,24 @@ func (b *BVTree) UpdateCollider(collider Collider) bool {
 		b.addNode(node)
 	}
 	return true
+}
+
+func (b *BVTree) Raycast(ray *Ray, maxDistance float64, hit *RaycastHit) bool {
+	return b.raycast(b.root, ray, maxDistance, hit)
+}
+
+func (b *BVTree) raycast(node *BVTreeNode, ray *Ray, maxDistance float64, hit *RaycastHit) bool {
+	if node == nil || !node.fatAabb.Raycast(ray, maxDistance, hit) {
+		return false
+	}
+	if node.IsLeaf() {
+		hitTmp := &RaycastHit{}
+		if node.collider.Raycast(ray, maxDistance, hitTmp) && hitTmp.distance < hit.distance {
+			return true
+		}
+		return false
+	}
+	return b.raycast(node.left, ray, maxDistance, hit) || b.raycast(node.right, ray, maxDistance, hit)
 }
 
 func (b *BVTree) updateNodes(node *BVTreeNode) {

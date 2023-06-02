@@ -28,6 +28,8 @@ func (b *BaseLevel) AddLevelComponent(comp Component) {
 
 func (b *BaseLevel) CreateEntity(name, tag string) *Entity {
 	entity := NewEntity(b, name, tag)
+	entity.AddComponent(NewSphereCollider())
+	entity.AddComponent(NewTransform())
 	return entity
 }
 

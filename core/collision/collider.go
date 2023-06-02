@@ -12,4 +12,5 @@ type Collider interface {
 	Type() ColliderType
 	FatAABB() *AABB
 	AABB() *AABB
+	Raycast(ray *Ray, maxDistance float64, hit *RaycastHit) bool
 }

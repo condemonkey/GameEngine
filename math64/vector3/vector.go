@@ -1,6 +1,9 @@
 package vector3
 
-import "math"
+import (
+	"game-engine/math64"
+	"math"
+)
 
 var Zero = Vector3{0, 0, 0}
 var One = Vector3{1, 1, 1}
@@ -26,6 +29,14 @@ func (v Vector3) Max() float64 {
 	return max
 }
 
+func (v Vector3) DivScalar(scalar float64) Vector3 {
+	return Vector3{
+		v.X / scalar,
+		v.Y / scalar,
+		v.Z / scalar,
+	}
+}
+
 func (v Vector3) Add(a Vector3) Vector3 {
 	return Vector3{
 		v.X + a.X,
@@ -42,20 +53,39 @@ func (v Vector3) Sub(a Vector3) Vector3 {
 	}
 }
 
-func (v Vector3) Scale(a Vector3) Vector3 {
+func (v Vector3) MulScalar(scalar float64) Vector3 {
 	return Vector3{
-		v.X - a.X,
-		v.Y - a.Y,
-		v.Z - a.Z,
+		v.X * scalar,
+		v.Y * scalar,
+		v.Z * scalar,
 	}
 }
 
-func (v Vector3) MulScala(a float64) Vector3 {
-	return Vector3{
-		v.X * a,
-		v.Y * a,
-		v.Z * a,
+func (v Vector3) Normalize() Vector3 {
+	length := v.Magnitude()
+	if length > math64.Epsilon {
+		return Vector3{
+			X: v.X / length,
+			Y: v.Y / length,
+			Z: v.Z / length,
+		}
 	}
+	return v
+}
+
+func (v Vector3) At(i int) float64 {
+	if i == 0 {
+		return v.X
+	} else if i == 1 {
+		return v.Y
+	} else if i == 2 {
+		return v.Z
+	}
+	panic("")
+}
+
+func (v Vector3) Magnitude() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y + v.Z*v.Z)
 }
 
 func Max(a Vector3, b Vector3) Vector3 {
@@ -74,7 +104,7 @@ func Min(a Vector3, b Vector3) Vector3 {
 	}
 }
 
-func Scale(a Vector3, b Vector3) Vector3 {
+func Mul(a Vector3, b Vector3) Vector3 {
 	return Vector3{
 		a.X * b.X,
 		a.Y * b.Y,
@@ -82,11 +112,11 @@ func Scale(a Vector3, b Vector3) Vector3 {
 	}
 }
 
-func Scalef(a Vector3, s float64) Vector3 {
+func MulScalar(a Vector3, scalar float64) Vector3 {
 	return Vector3{
-		a.X * s,
-		a.Y * s,
-		a.Z * s,
+		a.X * scalar,
+		a.Y * scalar,
+		a.Z * scalar,
 	}
 }
 
@@ -98,11 +128,11 @@ func Sum(a Vector3, b Vector3) Vector3 {
 	}
 }
 
-func Sumf(a Vector3, f float64) Vector3 {
+func SumScalar(a Vector3, scalar float64) Vector3 {
 	return Vector3{
-		a.X + f,
-		a.Y + f,
-		a.Z + f,
+		a.X + scalar,
+		a.Y + scalar,
+		a.Z + scalar,
 	}
 }
 
@@ -111,5 +141,21 @@ func Sub(a Vector3, b Vector3) Vector3 {
 		a.X - b.X,
 		a.Y - b.Y,
 		a.Z - b.Z,
+	}
+}
+
+func Div(a Vector3, b Vector3) Vector3 {
+	return Vector3{
+		a.X / b.X,
+		a.Y / b.Y,
+		a.Z / b.Z,
+	}
+}
+
+func DivScalar(scalar float64, a Vector3) Vector3 {
+	return Vector3{
+		scalar / a.X,
+		scalar / a.Y,
+		scalar / a.Z,
 	}
 }

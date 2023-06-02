@@ -20,14 +20,14 @@ func TestQueueSimple(t *testing.T) {
 	temp := &Temp{}
 	now := time.Now()
 	for j := 0; j < 5000; j++ {
-		queue.Add(temp)
+		queue.Push(temp)
 		//queue.Push(i)
 		//arrays = append(arrays, i)
 	}
 	t.Log(time.Now().Sub(now).Milliseconds())
 	now = time.Now()
 	for j := 0; j < 5000; j++ {
-		queue.Remove()
+		queue.Pop()
 		//queue.Push(i)
 		//arrays = append(arrays, i)
 	}

@@ -42,7 +42,7 @@ func TestTree(t *testing.T) {
 	//now = time.Now()
 	//for _, entity := range entities {
 	//	point := float64(math64.RandInt(0, 20))
-	//	entity.Transform().SetPosition(vector3.Sumf(entity.Transform().Position(), point))
+	//	entity.Transform().SetPosition(vector3.SumScalar(entity.Transform().Position(), point))
 	//	tree.UpdateCollider(entity.Collider())
 	//}
 	//t.Log(time.Now().Sub(now).Milliseconds())

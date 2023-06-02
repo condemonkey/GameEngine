@@ -29,6 +29,12 @@ func (c *Collider) Awake() {
 	c.collider.SetTransform(c.Transform())
 }
 
+func (c *Collider) Raycast(ray collision.Ray, maxDistance float64) *collision.RaycastHit {
+	//https://noti.st/eiaserinnys/jCpSbp/slides
+	return nil
+	//return c.collider.Raycast(ray, maxDistance)
+}
+
 func (c *Collider) Center() vector3.Vector3 {
 	return vector3.Sum(c.Transform().Position(), c.center)
 }
@@ -94,12 +100,16 @@ func (s *Sphere) Type() collision.ColliderType {
 }
 
 func (s *Sphere) FatAABB() *collision.AABB {
-	size := vector3.Scalef(vector3.Scalef(vector3.One, 2*s.Radius()), 1+FatAABBFactor)
+	size := vector3.MulScalar(vector3.MulScalar(vector3.One, 2*s.Radius()), 1+FatAABBFactor)
 	return collision.NewAABB(s.Center(), size)
 }
 
 func (s *Sphere) AABB() *collision.AABB {
-	return collision.NewAABB(s.Center(), vector3.Scalef(vector3.One, 2*s.Radius()))
+	return collision.NewAABB(s.Center(), vector3.MulScalar(vector3.One, 2*s.Radius()))
+}
+
+func (s *Sphere) Raycast(ray *collision.Ray, maxDistance float64, hit *collision.RaycastHit) bool {
+	return nil
 }
 
 //type BoxCollider struct {
