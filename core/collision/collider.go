@@ -1,15 +1,15 @@
 package collision
 
-type ShapeType int
+type ColliderType int
 
 const (
-	ShapeSphere  ShapeType = 1
-	ShapeCapsule           = 2
-	ShapeBox               = 3
+	ShapeSphere  ColliderType = 1
+	ShapeCapsule              = 2
+	ShapeBox                  = 3
 )
 
 type Collider interface {
-	Type() ShapeType
+	Type() ColliderType
 	FatAABB() *AABB
 	AABB() *AABB
 }

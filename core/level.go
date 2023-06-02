@@ -43,9 +43,10 @@ func (b *BaseLevel) RemoveEntity(entity *Entity) {
 func (b *BaseLevel) Update(dt int) {
 	b.entity.update(dt)
 	for _, entity := range b.entities {
-		if entity.Attribute(IsTransformDirty) {
-			entity.SetAttribute(IsTransformDirty, false)
-		}
+		//if entity.Attribute(IsTransformDirty) {
+		//	// update transform position???????
+		//	entity.SetAttribute(IsTransformDirty, false)
+		//}
 		entity.update(dt)
 	}
 }

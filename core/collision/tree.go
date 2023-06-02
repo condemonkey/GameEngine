@@ -1,10 +1,9 @@
 package collision
 
 import (
+	"game-engine/math64/vector3"
 	"game-engine/util"
 )
-
-//type NodePool *util.Pool[*BVTreeNode]
 
 type BVTreeNode struct {
 	pool     *util.PoolNode
@@ -12,24 +11,24 @@ type BVTreeNode struct {
 	left     *BVTreeNode
 	right    *BVTreeNode
 	collider Collider // Collider
-	aabb     AABB
+	fatAabb  AABB
 }
 
 func (b *BVTree) NewNodeWithEncapsulate(a0 *AABB, a1 *AABB) *BVTreeNode {
 	node := b.allocator.Pop()
-	node.aabb = *AABBEncapsulate(a0, a1)
+	node.fatAabb = *AABBEncapsulate(a0, a1)
 	return node
 }
 
 func (b *BVTree) NewNodeWithAABB(aabb *AABB) *BVTreeNode {
 	node := b.allocator.Pop()
-	node.aabb = *aabb
+	node.fatAabb = *aabb
 	return node
 }
 
 func (b *BVTree) NewNodeWithShape(collider Collider) *BVTreeNode {
 	node := b.allocator.Pop()
-	node.aabb = *collider.FatAABB()
+	node.fatAabb = *collider.FatAABB()
 	node.collider = collider
 	return node
 }
@@ -38,20 +37,27 @@ func (n *BVTreeNode) IsLeaf() bool {
 	return n.left == nil
 }
 
-func (n *BVTreeNode) ContainsFatter() bool {
-	return n.aabb.Contains(n.collider.AABB())
+func (n *BVTreeNode) IsInFatAABB() bool {
+	return n.fatAabb.Contains(n.collider.AABB())
+}
+
+func (n *BVTreeNode) FatAABB() AABB {
+	return n.fatAabb
+}
+
+func (n *BVTreeNode) Collider() Collider {
+	return n.collider
 }
 
 func (n *BVTreeNode) UpdateBranchAABB() {
 	assert(n.collider == nil && !n.IsLeaf())
-	n.aabb = *AABBEncapsulate(&n.left.aabb, &n.right.aabb)
-	//aabb = AABB::Encapsulate(left->aabb, right->aabb);
+	n.fatAabb = *AABBEncapsulate(&n.left.fatAabb, &n.right.fatAabb)
+	//fatAabb = AABB::Encapsulate(left->fatAabb, right->fatAabb);
 }
 
 func (n *BVTreeNode) UpdateLeafAABB() {
 	assert(n.IsLeaf() && n.collider != nil)
-	n.aabb = *n.collider.FatAABB()
-	//aabb = collider->GetFatAABB();
+	n.fatAabb = *n.collider.FatAABB()
 }
 
 func (n *BVTreeNode) SwapOutChild(oldChild *BVTreeNode, newChild *BVTreeNode) {
@@ -80,65 +86,60 @@ type BVTree struct {
 	//std::unordered_map<class Collider*, BVTreeNode*> colNodeMap;
 	root      *BVTreeNode
 	allocator *util.Pool[*BVTreeNode]
-	colNodes  map[Collider]*BVTreeNode
-	cache     *cache
+	colliders map[Collider]*BVTreeNode
+	cache     *util.Queue[*BVTreeNode]
 }
 
 func NewBVTree() *BVTree {
 	tree := &BVTree{
 		allocator: util.NewPool[*BVTreeNode](2048, func() *BVTreeNode { return &BVTreeNode{} }),
-		cache:     &cache{},
-		colNodes:  make(map[Collider]*BVTreeNode),
+		cache:     util.NewQueue[*BVTreeNode](),
+		colliders: make(map[Collider]*BVTreeNode),
 	}
 	return tree
 }
 
 func (b *BVTree) AddCollider(collider Collider) {
-	newNode := b.NewNodeWithShape(collider)
-	b.colNodes[collider] = newNode
-	b.addNode(newNode)
+	node := b.NewNodeWithShape(collider)
+	b.colliders[collider] = node
+	b.addNode(node)
 }
 
 func (b *BVTree) RemoveCollider(collider Collider) {
-	node := b.colNodes[collider]
+	node := b.colliders[collider]
 	assert(node != nil)
 	b.removeNode(node, true)
-	delete(b.colNodes, collider)
+	delete(b.colliders, collider)
 }
 
 func (b *BVTree) addNode(newNode *BVTreeNode) {
-	newAABB := newNode.aabb
+	newAABB := newNode.fatAabb
 
 	if b.root == nil {
 		b.root = newNode
 		b.root.parent = nil
 	} else {
 		cur := b.root
-		lefcnt := 0
-		rightcnt := 0
 		for !cur.IsLeaf() {
-			//cnt++
-			leftIncrease := AABBEncapsulate(&cur.left.aabb, &newAABB).SurfaceArea() - cur.left.aabb.SurfaceArea()
-			rightIncrease := AABBEncapsulate(&cur.right.aabb, &newAABB).SurfaceArea() - cur.right.aabb.SurfaceArea()
+			leftIncrease := AABBEncapsulate(&cur.left.fatAabb, &newAABB).SurfaceArea() - cur.left.fatAabb.SurfaceArea()
+			rightIncrease := AABBEncapsulate(&cur.right.fatAabb, &newAABB).SurfaceArea() - cur.right.fatAabb.SurfaceArea()
 			if leftIncrease > rightIncrease {
 				cur = cur.right
-				rightcnt++
 			} else {
 				cur = cur.left
-				lefcnt++
 			}
 		}
 		//fmt.Println("call addnoe lieaf", rightcnt, lefcnt)
 		if cur == b.root {
 			// cur is root
-			b.root = b.NewNodeWithEncapsulate(&cur.aabb, &newAABB)
+			b.root = b.NewNodeWithEncapsulate(&cur.fatAabb, &newAABB)
 			cur.parent = b.root
 			newNode.parent = b.root
 			b.root.left = cur
 			b.root.right = newNode
 		} else {
 			// cur is actual leaf, convert cur to branch
-			newBranch := b.NewNodeWithEncapsulate(&cur.aabb, &newNode.aabb)
+			newBranch := b.NewNodeWithEncapsulate(&cur.fatAabb, &newNode.fatAabb)
 			newBranch.parent = cur.parent
 			cur.parent.SwapOutChild(cur, newBranch)
 			cur.parent = newBranch
@@ -203,30 +204,70 @@ func (b *BVTree) Update() {
 	if b.root == nil {
 		return
 	}
-	b.cache.reset()
+
+	// 캐시 리셋
+	//b.cache.reset()
 
 	// fatAABB범위 밖의 collider들을 검출 (리프까지 순회함)
-	b.updateNodes(b.root)
+	//b.updateNodes(b.root)
+	//for i := 0; i < b.cache.count; i++ {
+	//	node := b.cache.nodes[i]
+	//	// 삭제
+	//	b.removeNode(node, false)
+	//}
+	//
+	//for i := 0; i < b.cache.count; i++ {
+	//	node := b.cache.nodes[i]
+	//	// 부모 박스 크기변경
+	//	node.UpdateLeafAABB()
+	//	// 노드 새로 추가
+	//	b.addNode(node)
+	//}
 
-	for i := 0; i < b.cache.count; i++ {
-		node := b.cache.nodes[i]
-		// 삭제
+	// stack
+	var relocates []*BVTreeNode
+
+	b.cache.Push(b.root)
+	for !b.cache.Empty() {
+		cur := b.cache.Pop()
+		if cur.left != nil {
+			b.cache.Push(cur.left)
+		}
+		if cur.right != nil {
+			b.cache.Push(cur.right)
+		}
+		if cur.IsLeaf() && !cur.IsInFatAABB() {
+			relocates = append(relocates, cur)
+		}
+	}
+
+	for _, node := range relocates {
 		b.removeNode(node, false)
 	}
 
-	for i := 0; i < b.cache.count; i++ {
-		node := b.cache.nodes[i]
-		// 부모 박스 크기변경
+	for _, node := range relocates {
 		node.UpdateLeafAABB()
-		// 노드 새로 추가
 		b.addNode(node)
 	}
 }
 
+func (b *BVTree) UpdateCollider(collider Collider) bool {
+	node := b.colliders[collider]
+	if node == nil {
+		panic("")
+	}
+	if node.IsLeaf() && !node.IsInFatAABB() {
+		b.removeNode(node, false)
+		node.UpdateLeafAABB()
+		b.addNode(node)
+	}
+	return true
+}
+
 func (b *BVTree) updateNodes(node *BVTreeNode) {
 	if node.IsLeaf() {
-		if !node.ContainsFatter() {
-			b.cache.push(node)
+		if !node.IsInFatAABB() {
+			b.cache.Push(node)
 		}
 	} else {
 		if node.left != nil {
@@ -238,24 +279,86 @@ func (b *BVTree) updateNodes(node *BVTreeNode) {
 	}
 }
 
-type cache struct {
-	nodes [2048]*BVTreeNode
-	count int
+// 모든 노드 순회
+func (b *BVTree) Traverse(call func(node *BVTreeNode)) {
+	if b.root == nil {
+		return
+	}
+	b.cache.Push(b.root)
+	for !b.cache.Empty() {
+		cur := b.cache.Pop()
+		call(cur)
+		if cur.left != nil {
+			b.cache.Push(cur.left)
+		}
+		if cur.right != nil {
+			b.cache.Push(cur.right)
+		}
+	}
 }
 
-func (c *cache) reset() {
-	c.count = 0
+//func (b *BVTree) Snapshot() {
+//	snapshots := Snapshots{}
+//
+//	b.Traverse(func(node *BVTreeNode) {
+//		aabb := node.fatAabb
+//		radius := float64(0)
+//		if node.IsLeaf() {
+//			radius = node.collider.(*core.Collider).InternalShape().(*core.Sphere).Radius()
+//		}
+//		snapshots.Snapshots = append(snapshots.Snapshots, Snapshot{
+//			Min:    aabb.min,
+//			Max:    aabb.max,
+//			Center: aabb.Center(),
+//			Size:   aabb.Size(),
+//			IsLeaf: node.IsLeaf(),
+//			Radius: radius,
+//		})
+//	})
+//
+//	bytes, _ := json.Marshal(snapshots)
+//	f, err := os.Create("C:\\Users\\kjk83317\\Desktop\\Unitiy\\Interpolation\\Assets\\Saves\\aabbs.json")
+//	if err != nil {
+//		panic(err)
+//	}
+//	w := bufio.NewWriter(f)
+//	w.WriteString(string(bytes))
+//	w.Flush()
+//
+//	//s.space.SaveNodes("C:\\Users\\kjk83317\\Desktop\\Unitiy\\Interpolation\\Assets\\Saves\\aabbs.json")
+//}
+
+type Snapshots struct {
+	Snapshots []Snapshot
 }
 
-func (c *cache) push(node *BVTreeNode) {
-	c.nodes[c.count] = node
-	c.count++
+type Snapshot struct {
+	Min    vector3.Vector3
+	Max    vector3.Vector3
+	Center vector3.Vector3
+	Size   vector3.Vector3
+	Radius float64
+	IsLeaf bool
 }
 
-func (c *cache) empty() bool {
-	return c.count == 0
-}
-
-func (c *cache) front() *BVTreeNode {
-	return c.nodes[0]
-}
+//type cache struct {
+//	nodes [2048]*BVTreeNode
+//	count int
+//}
+//
+//func (c *cache) reset() {
+//	c.count = 0
+//}
+//
+//func (c *cache) push(node *BVTreeNode) {
+//	c.nodes[c.count] = node
+//	c.count++
+//}
+//
+//func (c *cache) empty() bool {
+//	return c.count == 0
+//}
+//
+//func (c *cache) front() *BVTreeNode {
+//	return c.nodes[0]
+//}

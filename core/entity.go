@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"game-engine/util"
 	"reflect"
 )
@@ -66,13 +67,20 @@ func (e *Entity) Attribute(attr EntityAttribute) bool {
 }
 
 func (e *Entity) AddComponent(comp Component) Component {
-	if updatable, result := comp.(UpdatableComponent); result {
-		e.updateComponents = append(e.updateComponents, updatable)
+	switch comp.(type) {
+	case UpdatableComponent:
+		e.updateComponents = append(e.updateComponents, comp.(UpdatableComponent))
 	}
-	if transform, result := comp.(*Transform); result {
-		e.transform = transform
-	} else if collider, result := comp.(*Collider); result {
-		e.collider = collider
+
+	switch tp := comp.(type) {
+	case *Collider:
+		e.collider = comp.(*Collider)
+		break
+	case *Transform:
+		e.transform = comp.(*Transform)
+		break
+	default:
+		fmt.Println(tp)
 	}
 
 	e.components = append(e.components, comp)
@@ -165,5 +173,4 @@ func (e *Entity) release() {
 	for _, comp := range e.components {
 		comp.Release()
 	}
-
 }

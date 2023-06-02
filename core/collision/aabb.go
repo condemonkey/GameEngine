@@ -74,10 +74,10 @@ func (a *AABB) EncapsulatePoint(point vector3.Vector3) {
 }
 
 func AABBExpand(a *AABB, amount float64) {
-	a.size = vector3.Add(a.size, vector3.Scalef(vector3.One, amount))
+	a.size = vector3.Sum(a.size, vector3.Scalef(vector3.One, amount))
 	a.extents = vector3.Scalef(a.size, 0.5)
 	a.min = vector3.Sub(a.center, a.extents)
-	a.max = vector3.Add(a.center, a.extents)
+	a.max = vector3.Sum(a.center, a.extents)
 }
 
 func AABBIntersect(a *AABB, b *AABB) bool {

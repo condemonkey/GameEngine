@@ -3,7 +3,7 @@ package vector3
 import "math"
 
 var Zero = Vector3{0, 0, 0}
-var One = Vector3{0, 0, 0}
+var One = Vector3{1, 1, 1}
 
 type Vector3 struct {
 	X float64
@@ -90,7 +90,7 @@ func Scalef(a Vector3, s float64) Vector3 {
 	}
 }
 
-func Add(a Vector3, b Vector3) Vector3 {
+func Sum(a Vector3, b Vector3) Vector3 {
 	return Vector3{
 		a.X + b.X,
 		a.Y + b.Y,
@@ -98,7 +98,7 @@ func Add(a Vector3, b Vector3) Vector3 {
 	}
 }
 
-func Addf(a Vector3, f float64) Vector3 {
+func Sumf(a Vector3, f float64) Vector3 {
 	return Vector3{
 		a.X + f,
 		a.Y + f,
