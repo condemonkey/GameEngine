@@ -58,3 +58,7 @@ func Max(values ...float64) float64 {
 	}
 	return max
 }
+
+func Square(a float64) float64 {
+	return a * a
+}

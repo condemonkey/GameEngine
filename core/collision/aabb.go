@@ -163,7 +163,20 @@ func AABBIntersect(a *AABB, b *AABB) bool {
 		(a.min.Z <= b.max.Z && a.max.Z >= b.min.Z)
 }
 
-func AABBEncapsulate(a, b *AABB) *AABB {
+//func AABBOverlap(a *AABB, b *AABB) bool {
+//	if a.max.X < b.min.X || b.max.X < a.min.X {
+//		return false
+//	}
+//	if a.max.Y < b.min.Y || b.max.Y < a.min.Y {
+//		return false
+//	}
+//	if a.max.Z < b.min.Z || b.max.Z < a.min.Z {
+//		return false
+//	}
+//	return true
+//}
+
+func AABBUnion(a, b *AABB) *AABB {
 	max := vector3.Max(a.max, b.max)
 	min := vector3.Min(a.min, b.min)
 	center := max.Add(min).MulScalar(0.5)

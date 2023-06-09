@@ -27,8 +27,8 @@ func (t *Transform) Scale() vector3.Vector3 {
 	return t.scale
 }
 
-func (t *Transform) SetScale() vector3.Vector3 {
-	return t.scale
+func (t *Transform) SetScale(scale vector3.Vector3) {
+	t.scale = scale
 }
 
 func (t *Transform) SetParent(parent *Transform) {

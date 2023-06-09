@@ -15,29 +15,82 @@ import (
 func TestTree(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 
+	tree := collision.NewBVTree()
+
 	var entities []*Entity
 
-	entitiesCount := 1000
-	for i := 0; i < entitiesCount; i++ {
+	for i := 0; i < 2000; i++ {
 		entity := NewEntity(nil, "test", "")
 		entity.AddComponent(NewSphereCollider())
 		entity.AddComponent(NewTransform())
+		entity.AddComponent(NewVision(10, tree)) // 60
 
-		pointx := float64(math64.RandInt(0, 300))
-		pointy := float64(math64.RandInt(0, 300))
-		pointz := float64(math64.RandInt(0, 300))
+		pointx := float64(math64.RandInt(-1000, 1000))
+		pointy := float64(math64.RandInt(-200, 200))
+		pointz := float64(math64.RandInt(-1000, 1000))
 		entity.Transform().SetPosition(vector3.Vector3{X: pointx, Y: pointy, Z: pointz})
 
-		entity.awake()
 		entities = append(entities, entity)
 	}
 
-	tree := collision.NewBVTree()
+	for i := 0; i < 30; i++ {
+		entity := NewEntity(nil, "player", "")
+		entity.AddComponent(NewSphereCollider())
+		entity.AddComponent(NewTransform())
+		entity.AddComponent(NewVision(50, tree))
+
+		pointx := float64(math64.RandInt(-1000, 1000))
+		pointy := float64(math64.RandInt(-200, 200))
+		pointz := float64(math64.RandInt(-1000, 1000))
+		entity.Transform().SetPosition(vector3.Vector3{X: pointx, Y: pointy, Z: pointz})
+
+		entities = append(entities, entity)
+	}
+
 	now := time.Now()
 	for _, entity := range entities {
+		entity.awake()
 		tree.AddCollider(entity.Collider())
+		//comp := entity.FindComponent("Vision").(*Vision)
+		//tree.AddCollider(comp.Collider)
 	}
 	t.Log(time.Now().Sub(now).Milliseconds())
+
+	for i := 0; i < 30; i++ {
+		now = time.Now()
+		for _, entity := range entities {
+			entity.Update(0)
+		}
+		t.Log(time.Now().Sub(now).Milliseconds())
+
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	for _, entity := range entities {
+		comp := entity.FindComponent("Vision").(*Vision)
+		tree.AddCollider(comp.Collider)
+	}
+
+	//col := NewEntity(nil, "test", "")
+	//col.AddComponent(NewSphereCollider())
+	//col.AddComponent(NewTransform())
+	//pointx := float64(math64.RandInt(-50, 50))
+	//pointy := float64(math64.RandInt(-50, 50))
+	//pointz := float64(math64.RandInt(-50, 50))
+	//col.Transform().SetPosition(vector3.Vector3{X: pointx, Y: pointy, Z: pointz})
+	//col.Transform().SetScale(vector3.Vector3{X: 20, Y: 20, Z: 20})
+	//col.awake()
+
+	//now = time.Now()
+	//collisions := tree.Query(col.Collider())
+	//fmt.Println(len(collisions))
+	//for _, shape := range collisions {
+	//	//fmt.Println("on collide", shape.(*Collider).Shape().Center())
+	//}
+	//t.Log(time.Now().Sub(now).Milliseconds())
+
+	//tree.AddCollider(col.Collider())
+	//entities = append(entities, col)
 
 	//now = time.Now()
 	//for _, entity := range entities {
@@ -53,7 +106,7 @@ func TestTree(t *testing.T) {
 		aabb := node.FatAABB()
 		radius := float64(0)
 		if node.IsLeaf() {
-			radius = node.Collider().(*Collider).InternalShape().(*Sphere).Radius()
+			radius = node.Collider().(*Collider).Shape().(*Sphere).Radius()
 		}
 		snapshots.Snapshots = append(snapshots.Snapshots, collision.Snapshot{
 			Min:    aabb.Min(),

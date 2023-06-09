@@ -88,6 +88,10 @@ func (v Vector3) Magnitude() float64 {
 	return math.Sqrt(v.X*v.X + v.Y*v.Y + v.Z*v.Z)
 }
 
+func (v Vector3) SqrMagnitude() float64 {
+	return v.X*v.X + v.Y*v.Y + v.Z*v.Z
+}
+
 func Max(a Vector3, b Vector3) Vector3 {
 	return Vector3{
 		X: math.Max(a.X, b.X),

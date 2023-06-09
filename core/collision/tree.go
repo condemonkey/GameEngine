@@ -23,20 +23,6 @@ type BVTreeNode struct {
 	graphic  graphic.Graphic
 }
 
-func (b *BVTree) NewNodeWithAABB(aabb *AABB) *BVTreeNode {
-	node := b.nodes.Pop()
-	node.collider = nil
-	node.fatAabb = *aabb
-	return node
-}
-
-func (b *BVTree) NewNodeWithCollider(collider Collider) *BVTreeNode {
-	node := b.nodes.Pop()
-	node.fatAabb = *collider.FatAABB()
-	node.collider = collider
-	return node
-}
-
 func (n *BVTreeNode) IsLeaf() bool {
 	return n.left == nil
 }
@@ -55,7 +41,7 @@ func (n *BVTreeNode) Collider() Collider {
 
 func (n *BVTreeNode) UpdateBranchAABB() {
 	assert(n.collider == nil && !n.IsLeaf())
-	n.fatAabb = *AABBEncapsulate(&n.left.fatAabb, &n.right.fatAabb)
+	n.fatAabb = *AABBUnion(&n.left.fatAabb, &n.right.fatAabb)
 	//fatAabb = AABB::Encapsulate(left->fatAabb, right->fatAabb);
 }
 
@@ -73,6 +59,13 @@ func (n *BVTreeNode) SwapOutChild(oldChild *BVTreeNode, newChild *BVTreeNode) {
 		n.right = newChild
 		n.right.parent = n
 	}
+}
+
+func (n *BVTreeNode) Reset() {
+	n.collider = nil
+	n.left = nil
+	n.right = nil
+	n.parent = nil
 }
 
 // 풀링
@@ -103,6 +96,25 @@ func NewBVTree() *BVTree {
 	return tree
 }
 
+func (b *BVTree) NewNode() *BVTreeNode {
+	node := b.nodes.Pop()
+	node.Reset()
+	return node
+}
+
+func (b *BVTree) NewNodeWithAABB(aabb *AABB) *BVTreeNode {
+	node := b.NewNode()
+	node.fatAabb = *aabb
+	return node
+}
+
+func (b *BVTree) NewNodeWithCollider(collider Collider) *BVTreeNode {
+	node := b.NewNode()
+	node.fatAabb = *collider.FatAABB()
+	node.collider = collider
+	return node
+}
+
 func (b *BVTree) AddCollider(collider Collider) {
 	node := b.NewNodeWithCollider(collider)
 	b.colliders[collider] = node
@@ -125,8 +137,8 @@ func (b *BVTree) addNode(newNode *BVTreeNode) {
 	} else {
 		cur := b.root
 		for !cur.IsLeaf() {
-			leftIncrease := AABBEncapsulate(&cur.left.fatAabb, &newAABB).SurfaceArea() - cur.left.fatAabb.SurfaceArea()
-			rightIncrease := AABBEncapsulate(&cur.right.fatAabb, &newAABB).SurfaceArea() - cur.right.fatAabb.SurfaceArea()
+			leftIncrease := AABBUnion(&cur.left.fatAabb, &newAABB).SurfaceArea() - cur.left.fatAabb.SurfaceArea()
+			rightIncrease := AABBUnion(&cur.right.fatAabb, &newAABB).SurfaceArea() - cur.right.fatAabb.SurfaceArea()
 			if leftIncrease > rightIncrease {
 				cur = cur.right
 			} else {
@@ -136,14 +148,14 @@ func (b *BVTree) addNode(newNode *BVTreeNode) {
 		//fmt.Println("call addnoe lieaf", rightcnt, lefcnt)
 		if cur == b.root {
 			// cur is root
-			b.root = b.NewNodeWithAABB(AABBEncapsulate(&cur.fatAabb, &newAABB))
+			b.root = b.NewNodeWithAABB(AABBUnion(&cur.fatAabb, &newAABB))
 			cur.parent = b.root
 			newNode.parent = b.root
 			b.root.left = cur
 			b.root.right = newNode
 		} else {
 			// cur is actual leaf, convert cur to branch
-			newBranch := b.NewNodeWithAABB(AABBEncapsulate(&cur.fatAabb, &newNode.fatAabb))
+			newBranch := b.NewNodeWithAABB(AABBUnion(&cur.fatAabb, &newNode.fatAabb))
 			newBranch.parent = cur.parent
 			cur.parent.SwapOutChild(cur, newBranch)
 			cur.parent = newBranch
@@ -277,7 +289,7 @@ func (b *BVTree) raycast(node *BVTreeNode, ray *Ray, maxDistance float64, hit *R
 	}
 	if node.IsLeaf() {
 		hitTmp := &RaycastHit{}
-		if node.collider.Raycast(ray, maxDistance, hitTmp) && hitTmp.distance < hit.distance {
+		if node.collider.IntersectRay(ray, maxDistance, hitTmp) && hitTmp.distance < hit.distance {
 			return true
 		}
 		return false
@@ -298,6 +310,35 @@ func (b *BVTree) updateNodes(node *BVTreeNode) {
 			b.updateNodes(node.right)
 		}
 	}
+}
+
+func (b *BVTree) Query(collider Collider) (hists []Collider) {
+	if b.root == nil {
+		return nil
+	}
+
+	open := b.cache
+	open.Push(b.root)
+
+	for !open.Empty() {
+		node := open.Pop()
+		if node.fatAabb.Intersect(collider.AABB()) {
+			if node.IsLeaf() {
+				//if node.collider.IntersectShape(collider) {
+				//	hists = append(hists, node.collider)
+				//}
+				hists = append(hists, node.collider)
+			} else {
+				if node.right != nil {
+					open.Push(node.right)
+				}
+				if node.left != nil {
+					open.Push(node.left)
+				}
+			}
+		}
+	}
+	return hists
 }
 
 // 모든 노드 순회

@@ -1,9 +1,14 @@
 package core
 
+import (
+	"game-engine/core/collision"
+)
+
 type Level interface {
 	NewEntity(name, tag string)
 	AddEntity(entity *Entity)
 	RemoveEntity(entity *Entity)
+	FindEntitiesOverlapCollider(collider collision.Collider) []collision.Collider
 	Load()
 	OnLoad()
 	OnDestroy()
@@ -13,12 +18,14 @@ type BaseLevel struct {
 	Level
 	entity   *Entity
 	entities map[int]*Entity
+	tree     *collision.BVTree
 }
 
 func NewBaseLevel() *BaseLevel {
 	b := &BaseLevel{}
 	b.entity = NewEntity(b, "level", "")
 	b.entities = make(map[int]*Entity)
+	b.tree = collision.NewBVTree()
 	return b
 }
 
@@ -34,12 +41,19 @@ func (b *BaseLevel) CreateEntity(name, tag string) *Entity {
 }
 
 func (b *BaseLevel) AddEntity(entity *Entity) {
-	b.entities[entity.Id()] = entity
 	entity.awake()
+	b.entities[entity.Id()] = entity
+	b.tree.AddCollider(entity.Collider())
 }
 
 func (b *BaseLevel) RemoveEntity(entity *Entity) {
 	delete(b.entities, entity.Id())
+	b.tree.RemoveCollider(entity.Collider())
+}
+
+func (b *BaseLevel) FindEntitiesOverlapCollider(collider collision.Collider) []collision.Collider {
+	return nil
+	//return b.tree.Query(collider)
 }
 
 func (b *BaseLevel) Update(dt int) {

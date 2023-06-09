@@ -1,9 +1,9 @@
 package core
 
 import (
-	"fmt"
 	"game-engine/util"
 	"reflect"
+	"strings"
 )
 
 type EntityAttribute int64
@@ -23,6 +23,7 @@ type Entity struct {
 	active           bool
 	transform        *Transform
 	collider         *Collider
+	vision           *Vision
 	attributes       *util.Bitset64
 	level            Level
 }
@@ -35,6 +36,8 @@ func NewEntity(level Level, name, tag string) *Entity {
 		attributes: util.NewBitset(3),
 		level:      level,
 		id:         ids,
+		name:       name,
+		tag:        tag,
 	}
 }
 
@@ -52,6 +55,10 @@ func (e *Entity) Transform() *Transform {
 
 func (e *Entity) Collider() *Collider {
 	return e.collider
+}
+
+func (e *Entity) Vision() *Vision {
+	return e.vision
 }
 
 func (e *Entity) SetAttribute(attr EntityAttribute, flag bool) {
@@ -72,20 +79,22 @@ func (e *Entity) AddComponent(comp Component) Component {
 		e.updateComponents = append(e.updateComponents, comp.(UpdatableComponent))
 	}
 
-	switch tp := comp.(type) {
+	switch comp.(type) {
 	case *Collider:
 		e.collider = comp.(*Collider)
 		break
 	case *Transform:
 		e.transform = comp.(*Transform)
 		break
-	default:
-		fmt.Println(tp)
+	case *Vision:
+		e.vision = comp.(*Vision)
+		break
 	}
 
 	e.components = append(e.components, comp)
 
-	comp.SetName(reflect.TypeOf(comp).Name())
+	names := strings.Split(reflect.TypeOf(comp).String(), ".")
+	comp.SetName(names[len(names)-1])
 	comp.SetEntity(e)
 
 	return comp

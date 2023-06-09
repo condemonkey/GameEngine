@@ -5,34 +5,56 @@ import (
 	"game-engine/math64/vector3"
 )
 
+type CollisionHandler interface {
+	CollisionEnter(collider *Collider)
+	CollisionExit(collider *Collider)
+}
+
 const FatAABBFactor float64 = 0.4
 
 type Collider struct {
 	BaseComponent
-	UpdatableComponent
 	collision.Collider
 	center   vector3.Vector3
-	collider Shape
+	shape    Shape
+	handlers []CollisionHandler
 }
 
 func NewSphereCollider() *Collider {
 	return &Collider{
 		BaseComponent: NewBaseComponent(),
-		collider:      NewSphere(),
+		shape:         NewSphere(0.5),
 	}
 }
 
-func (c *Collider) Update(dt int) {
+func NewShapeCollider(shape Shape) *Collider {
+	return &Collider{
+		BaseComponent: NewBaseComponent(),
+		shape:         shape,
+	}
 }
 
 func (c *Collider) Awake() {
-	c.collider.SetTransform(c.Transform())
+	c.SetTransform(c.Transform())
 }
 
-func (c *Collider) Raycast(ray collision.Ray, maxDistance float64) *collision.RaycastHit {
+func (c *Collider) SetTransform(transform *Transform) {
+	c.shape.SetTransform(transform)
+}
+
+func (c *Collider) IntersectRay(ray *collision.Ray, maxDistance float64, hit *collision.RaycastHit) bool {
 	//https://noti.st/eiaserinnys/jCpSbp/slides
-	return nil
+	return true
 	//return c.collider.Raycast(ray, maxDistance)
+}
+
+func (c *Collider) IntersectShape(other collision.Collider) bool {
+	shape := other.(*Collider).Shape()
+	switch other.Type() {
+	case collision.ShapeSphere:
+		return c.shape.IntersectSphere(shape.(*Sphere))
+	}
+	panic("invalid collision shape type")
 }
 
 func (c *Collider) Center() vector3.Vector3 {
@@ -40,82 +62,36 @@ func (c *Collider) Center() vector3.Vector3 {
 }
 
 func (c *Collider) Type() collision.ColliderType {
-	return c.collider.Type()
+	return c.shape.Type()
 }
 
-func (c *Collider) InternalShape() Shape {
-	return c.collider
+func (c *Collider) Shape() Shape {
+	return c.shape
 }
 
 func (c *Collider) FatAABB() *collision.AABB {
-	return c.collider.FatAABB()
+	return c.shape.FatAABB()
 }
 
 func (c *Collider) AABB() *collision.AABB {
-	return c.collider.AABB()
+	return c.shape.AABB()
 }
 
-type Shape interface {
-	collision.Collider
-	Center() vector3.Vector3
-	SetTransform(transform *Transform)
+func (c *Collider) AddCollisionHandler(handler CollisionHandler) {
+	c.handlers = append(c.handlers, handler)
 }
 
-type ShapeCollider struct {
-	Shape
-	transform *Transform
-	center    vector3.Vector3
+func (c *Collider) RemoveCollisionHandler(handler CollisionHandler) {
 }
 
-func (s *ShapeCollider) Center() vector3.Vector3 {
-	return s.transform.Position().Add(s.center)
-}
-
-func (s *ShapeCollider) SetTransform(transform *Transform) {
-	s.transform = transform
-}
-
-// internal shape
-func NewSphere() Shape {
-	return &Sphere{
-		ShapeCollider: ShapeCollider{
-			center:    vector3.Zero,
-			transform: nil,
-		},
-		radius: 0.5,
+func (c *Collider) CollisionEnter(other collision.Collider) {
+	for _, handler := range c.handlers {
+		handler.CollisionEnter(other.(*Collider))
 	}
 }
 
-type Sphere struct {
-	ShapeCollider
-	radius float64
+func (c *Collider) CollisionExit(other collision.Collider) {
+	for _, handler := range c.handlers {
+		handler.CollisionExit(other.(*Collider))
+	}
 }
-
-func (s *Sphere) Radius() float64 {
-	return s.radius * s.transform.Scale().Max()
-}
-
-func (s *Sphere) Type() collision.ColliderType {
-	return collision.ShapeSphere
-}
-
-func (s *Sphere) FatAABB() *collision.AABB {
-	size := vector3.MulScalar(vector3.MulScalar(vector3.One, 2*s.Radius()), 1+FatAABBFactor)
-	return collision.NewAABB(s.Center(), size)
-}
-
-func (s *Sphere) AABB() *collision.AABB {
-	return collision.NewAABB(s.Center(), vector3.MulScalar(vector3.One, 2*s.Radius()))
-}
-
-func (s *Sphere) Raycast(ray *collision.Ray, maxDistance float64, hit *collision.RaycastHit) bool {
-	return nil
-}
-
-//type BoxCollider struct {
-//	Collider
-//}
-//
-//type CapsuleCollider struct {
-//	Collider
-//}
