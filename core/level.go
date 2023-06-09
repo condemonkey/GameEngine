@@ -2,6 +2,7 @@ package core
 
 import (
 	"game-engine/core/collision"
+	"game-engine/core/geo"
 )
 
 type Level interface {
@@ -35,7 +36,7 @@ func (b *BaseLevel) AddLevelComponent(comp Component) {
 
 func (b *BaseLevel) CreateEntity(name, tag string) *Entity {
 	entity := NewEntity(b, name, tag)
-	entity.AddComponent(NewSphereCollider())
+	entity.AddComponent(NewCollider(collision.NewCollider(geo.NewSphere(0.5))))
 	entity.AddComponent(NewTransform())
 	return entity
 }
@@ -43,12 +44,12 @@ func (b *BaseLevel) CreateEntity(name, tag string) *Entity {
 func (b *BaseLevel) AddEntity(entity *Entity) {
 	entity.awake()
 	b.entities[entity.Id()] = entity
-	b.tree.AddCollider(entity.Collider())
+	b.tree.AddCollider(entity.Collider().CollisionCollider())
 }
 
 func (b *BaseLevel) RemoveEntity(entity *Entity) {
 	delete(b.entities, entity.Id())
-	b.tree.RemoveCollider(entity.Collider())
+	b.tree.RemoveCollider(entity.Collider().CollisionCollider())
 }
 
 func (b *BaseLevel) FindEntitiesOverlapCollider(collider collision.Collider) []collision.Collider {

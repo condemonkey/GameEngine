@@ -24,7 +24,6 @@ func TestLevel(t *testing.T) {
 	}
 	entity := level.CreateEntity("test", "test1level")
 	entity.AddComponent(NewTransform())
-	entity.AddComponent(NewSphereCollider())
 
 	entity.Transform().SetPosition(vector3.One)
 

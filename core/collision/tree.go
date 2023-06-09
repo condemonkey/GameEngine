@@ -1,17 +1,10 @@
 package collision
 
 import (
+	"game-engine/core/geo"
 	"game-engine/math64/vector3"
 	"game-engine/util"
-	g3ncore "github.com/g3n/engine/core"
-	"github.com/g3n/engine/graphic"
 )
-
-type Graphic struct {
-	scene *g3ncore.Node
-	mesh  *graphic.Mesh
-	box   *graphic.Mesh
-}
 
 type BVTreeNode struct {
 	pool     *util.PoolNode
@@ -20,7 +13,6 @@ type BVTreeNode struct {
 	right    *BVTreeNode
 	collider Collider // Collider
 	fatAabb  AABB
-	graphic  graphic.Graphic
 }
 
 func (n *BVTreeNode) IsLeaf() bool {
@@ -28,7 +20,7 @@ func (n *BVTreeNode) IsLeaf() bool {
 }
 
 func (n *BVTreeNode) IsInFatAABB() bool {
-	return n.fatAabb.Contains(n.collider.AABB())
+	return n.fatAabb.Contains(n.collider.AABB(0))
 }
 
 func (n *BVTreeNode) FatAABB() AABB {
@@ -47,7 +39,7 @@ func (n *BVTreeNode) UpdateBranchAABB() {
 
 func (n *BVTreeNode) UpdateLeafAABB() {
 	assert(n.IsLeaf() && n.collider != nil)
-	n.fatAabb = *n.collider.FatAABB()
+	n.fatAabb = *n.collider.AABB(FatAABBFactor)
 }
 
 func (n *BVTreeNode) SwapOutChild(oldChild *BVTreeNode, newChild *BVTreeNode) {
@@ -110,7 +102,7 @@ func (b *BVTree) NewNodeWithAABB(aabb *AABB) *BVTreeNode {
 
 func (b *BVTree) NewNodeWithCollider(collider Collider) *BVTreeNode {
 	node := b.NewNode()
-	node.fatAabb = *collider.FatAABB()
+	node.fatAabb = *collider.AABB(FatAABBFactor)
 	node.collider = collider
 	return node
 }
@@ -284,17 +276,18 @@ func (b *BVTree) Raycast(ray *Ray, maxDistance float64, hit *RaycastHit) bool {
 }
 
 func (b *BVTree) raycast(node *BVTreeNode, ray *Ray, maxDistance float64, hit *RaycastHit) bool {
-	if node == nil || !node.fatAabb.Raycast(ray, maxDistance, hit) {
-		return false
-	}
-	if node.IsLeaf() {
-		hitTmp := &RaycastHit{}
-		if node.collider.IntersectRay(ray, maxDistance, hitTmp) && hitTmp.distance < hit.distance {
-			return true
-		}
-		return false
-	}
-	return b.raycast(node.left, ray, maxDistance, hit) || b.raycast(node.right, ray, maxDistance, hit)
+	//if node == nil || !node.fatAabb.Raycast(ray, maxDistance, hit) {
+	//	return false
+	//}
+	//if node.IsLeaf() {
+	//	hitTmp := &RaycastHit{}
+	//	if node.collider.IntersectRay(ray, maxDistance, hitTmp) && hitTmp.distance < hit.distance {
+	//		return true
+	//	}
+	//	return false
+	//}
+	//return b.raycast(node.left, ray, maxDistance, hit) || b.raycast(node.right, ray, maxDistance, hit)
+	return true
 }
 
 func (b *BVTree) updateNodes(node *BVTreeNode) {
@@ -312,34 +305,143 @@ func (b *BVTree) updateNodes(node *BVTreeNode) {
 	}
 }
 
-func (b *BVTree) Query(collider Collider) (hists []Collider) {
+//func (b *BVTree) Query(aabb *AABB, iterator *Iterator) {
+//	if b.root == nil {
+//		return
+//	}
+//
+//	//iterator.count = 0
+//
+//	open := b.cache
+//	open.Push(b.root)
+//
+//	for !open.Empty() {
+//		node := open.Pop()
+//		if node.IsLeaf() {
+//			iterator.colliders[iterator.count] = node.collider
+//			iterator.count++
+//		} else {
+//			if node.left.fatAabb.Intersect(aabb) {
+//				open.Push(node.left)
+//			}
+//			if node.right.fatAabb.Intersect(aabb) {
+//				open.Push(node.right)
+//			}
+//		}
+//
+//		//if node.fatAabb.Intersect(collider.AABB(0)) {
+//		//	if node.IsLeaf() {
+//		//		//if node.collider.IntersectShape(collider) {
+//		//		//	hists = append(hists, node.collider)
+//		//		//}
+//		//		cols = append(cols, node.collider)
+//		//	} else {
+//		//		if node.right != nil {
+//		//			open.Push(node.right)
+//		//		}
+//		//		if node.left != nil {
+//		//			open.Push(node.left)
+//		//		}
+//		//	}
+//		//}
+//	}
+//}
+
+func (b *BVTree) Intersect(collider Collider, iterator *Iterator) {
 	if b.root == nil {
-		return nil
+		return
 	}
 
-	open := b.cache
-	open.Push(b.root)
+	aabb := collider.AABB(0)
+	queue := iterator.cache //util.NewQueue[*BVTreeNode]()
+	queue.Push(b.root)
 
-	for !open.Empty() {
-		node := open.Pop()
-		if node.fatAabb.Intersect(collider.AABB()) {
+	for !queue.Empty() {
+		node := queue.Pop()
+		if node.fatAabb.Intersect(aabb) {
 			if node.IsLeaf() {
-				//if node.collider.IntersectShape(collider) {
-				//	hists = append(hists, node.collider)
-				//}
-				hists = append(hists, node.collider)
+				node.collider.Intersect(collider)
 			} else {
 				if node.right != nil {
-					open.Push(node.right)
+					queue.Push(node.right)
 				}
 				if node.left != nil {
-					open.Push(node.left)
+					queue.Push(node.left)
 				}
 			}
 		}
 	}
-	return hists
 }
+
+type Iterator struct {
+	cache *util.Queue[*BVTreeNode]
+	tree  *BVTree
+}
+
+func (q *Iterator) SearchRadius(center vector3.Vector3, radius float64, call func(x Collider)) {
+	collider := NewCollider(geo.NewSphere(radius))
+	collider.SetPosition(center)
+	collider.SetCollisionHandle(call)
+	q.Search(collider)
+
+	//fmt.Println("bphase", q.count)
+
+	//for i := 0; i < q.count; i++ {
+	//	if q.colliders[i].Intersect(collider) {
+	//		//q.rables[q.rcount] = i
+	//		//q.rcount++
+	//		call(q.colliders[i])
+	//	}
+	//}
+}
+
+func (q *Iterator) Search(collider Collider) {
+	//q.tree.Query(collider.AABB(0), q)
+	q.tree.Intersect(collider, q)
+	//fmt.Println("bphase", q.count)
+
+	//for i := 0; i < q.count; i++ {
+	//	if q.colliders[i].Intersect(collider) {
+	//		//q.rables[q.rcount] = i
+	//		//q.rcount++
+	//		call(q.colliders[i])
+	//	}
+	//}
+}
+
+func (q *Iterator) SearchAsync(collider Collider) chan bool {
+	c := make(chan bool)
+	go func() {
+		q.tree.Intersect(collider, q)
+		c <- true
+	}()
+	return c
+}
+
+func (b *BVTree) NewIterator() *Iterator {
+	return &Iterator{
+		tree:  b,
+		cache: util.NewQueue[*BVTreeNode](),
+	}
+}
+
+//func (b *BVTree) HitSphere(center vector3.Vector3, radius float64) (hists []Collider) {
+//	if b.root == nil {
+//		return nil
+//	}
+//
+//	sphere := NewCollider(geo.NewSphere(radius))
+//	sphere.SetPosition(center)
+//
+//	pairs := b.Query(sphere)
+//	for _, col := range pairs {
+//		if col.Intersect(sphere) {
+//			hists = append(hists, col)
+//		}
+//	}
+//
+//	return hists
+//}
 
 // 모든 노드 순회
 func (b *BVTree) Traverse(call func(node *BVTreeNode)) {

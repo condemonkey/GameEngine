@@ -36,6 +36,14 @@ func (a *AABB) Extents() vector3.Vector3 {
 	return a.extents
 }
 
+func (a *AABB) Expend(amount float64) *AABB {
+	a.size = a.size.Add(vector3.One.MulScalar(amount))
+	a.extents = a.size.MulScalar(0.5)
+	a.min = a.center.Sub(a.extents)
+	a.max = a.center.Add(a.extents)
+	return a
+}
+
 func (a *AABB) Min() vector3.Vector3 {
 	return a.min
 }

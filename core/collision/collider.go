@@ -2,57 +2,108 @@ package collision
 
 import (
 	"game-engine/core/geo"
-	"game-engine/math64"
 	"game-engine/math64/vector3"
 )
 
-type ColliderType int
-
-const (
-	ShapeSphere  ColliderType = 1
-	ShapeCapsule              = 2
-	ShapeBox                  = 3
-)
-
-type Collider interface {
-	Type() ColliderType
-	FatAABB() *AABB
-	AABB() *AABB
-	IntersectRay(ray *Ray, maxDistance float64, hit *RaycastHit) bool
-	IntersectShape(other Collider) bool
-	CollisionEnter(other Collider)
-	CollisionExit(other Collider)
-}
+//type ColliderType int
+//
+//const (
+//	ShapeSphere  ColliderType = 1
+//	ShapeCapsule              = 2
+//	ShapeBox                  = 3
+//)
+//
+//type Collider interface {
+//	Type() ColliderType
+//	FatAABB() *AABB
+//	AABB() *AABB
+//	IntersectRay(ray *Ray, maxDistance float64, hit *RaycastHit) bool
+//	IntersectShape(other Collider) bool
+//	CollisionEnter(other Collider)
+//	CollisionExit(other Collider)
+//}
 
 const FatAABBFactor float64 = 0.4
 
-type ShapeCollider interface {
-	IntersectSphere(other *SphereCollider)
+type Hittable interface {
+	OnHit(handle Hittable)
+	Position() vector3.Vector3
+	Scale() vector3.Vector3
 }
 
-type SphereCollider struct {
-	ShapeCollider
-	sphere   geo.Sphere
-	position vector3.Vector3
+type OnCollisionFunc func(hit Collider)
+
+type Collider interface {
+	Intersect(other Collider) bool
+	IntersectSphere(other *SphereCollider) bool
+	AABB(expand float64) *AABB
+	SetPosition(position vector3.Vector3)
+	Center() vector3.Vector3
+	SetScale(scale vector3.Vector3)
+	SetHandle(user Hittable)
+	SetCollisionHandle(handler OnCollisionFunc)
+	CallCollisionHandle(hit Collider)
+	Handle() Hittable
+	Type() geo.ShapeType
 }
 
-func (s *SphereCollider) AABB(scale float64, fatter float64) *AABB {
-	if fatter == 0 {
-		return NewAABB(s.position, vector3.MulScalar(vector3.One, 2*s.sphere.Radius))
-	} else {
-		size := vector3.MulScalar(vector3.MulScalar(vector3.One, 2*(s.sphere.Radius*scale)), 1+fatter)
-		return NewAABB(s.position, size)
+func NewCollider(shape geo.Shape) Collider {
+	switch shape.Type() {
+	case geo.ShapeSphere:
+		return &SphereCollider{
+			ShapeCollider: &ShapeCollider{
+				scale:       vector3.One,
+				parentScale: vector3.One,
+			},
+			sphere: shape.(geo.Sphere),
+		}
 	}
+	panic("")
 }
 
-func (s *SphereCollider) SetPosition(position vector3.Vector3) {
-	s.position = position
+type ShapeCollider struct {
+	Collider
+	parentPosition vector3.Vector3 // 부모 포지션
+	parentScale    vector3.Vector3 // 부모 스케일
+	scale          vector3.Vector3
+	center         vector3.Vector3
+	handle         Hittable
+	handler        OnCollisionFunc
 }
 
-func (s *SphereCollider) IntersectSphere(other *SphereCollider) bool {
-	magnitude := s.position.Sub(other.position).SqrMagnitude()
-	sr := s.sphere.Radius
-	or := other.sphere.Radius
-	square := math64.Square(sr + or)
-	return magnitude <= square
+func (s *ShapeCollider) Center() vector3.Vector3 {
+	return s.parentPosition.Add(s.center)
+}
+
+func (s *ShapeCollider) SetPosition(position vector3.Vector3) {
+	s.parentPosition = position
+}
+
+func (s *ShapeCollider) SetScale(scale vector3.Vector3) {
+	s.parentScale = scale
+}
+
+func (s *ShapeCollider) Handle() Hittable {
+	return s.handle
+}
+
+func (s *ShapeCollider) SetHandle(user Hittable) {
+	s.handle = user
+	s.SetPosition(s.handle.Position())
+	s.SetScale(s.handle.Scale())
+}
+
+func (s *ShapeCollider) SetCollisionHandle(handler OnCollisionFunc) {
+	s.handler = handler
+}
+
+func (s *ShapeCollider) CallCollisionHandle(hit Collider) {
+	if s.handler == nil {
+		return
+	}
+	s.handler(hit)
+}
+
+func (s *ShapeCollider) AABB(expend float64) *AABB {
+	return s.AABB(expend)
 }

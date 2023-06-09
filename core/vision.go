@@ -1,7 +1,10 @@
 package core
 
 import (
+	"fmt"
 	"game-engine/core/collision"
+	"game-engine/core/geo"
+	"game-engine/math64/vector3"
 )
 
 // 네트워크 플레이어들만 가지고 있으면 될 듯
@@ -9,33 +12,48 @@ import (
 type Vision struct {
 	BaseComponent
 	UpdatableComponent
+	collision.Hittable
 	radius          float64
 	visibleEntities []collision.Collider
-	Collider        *Collider
+	collider        collision.Collider
 	tree            *collision.BVTree
 }
 
 func NewVision(radius float64, tree *collision.BVTree) *Vision {
 	return &Vision{
-		radius:   radius,
-		Collider: NewShapeCollider(NewSphere(radius)),
-		tree:     tree,
+		radius: radius,
+		collider: collision.NewCollider(geo.Sphere{
+			Radius: radius,
+		}),
+		tree: tree,
 	}
 }
 
 func (t *Vision) Awake() {
-	t.Collider.SetTransform(t.Transform())
-	//t.Entity().Collider().AddCollisionHandler(t)
+	t.collider.SetScale(t.Transform().Scale())
+	t.collider.SetPosition(t.Transform().Position())
+	t.collider.SetHandle(t)
 }
 
 func (t *Vision) Update(dt int) {
 	// 범위 안 object들을 검출
-	t.visibleEntities = t.tree.Query(t.Collider)
+	//t.visibleEntities = t.tree.Query(t.collider)
 }
 
 func (t *Vision) VisibleEntities() []collision.Collider {
 	return t.visibleEntities
 }
 
-//CollisionEnter(collider *Collider)
-//CollisionExit(collider *Collider)
+func (t *Vision) Position() vector3.Vector3 {
+	return t.Transform().Position()
+}
+
+func (t *Vision) Scale() vector3.Vector3 {
+	return t.Transform().Scale()
+}
+
+// on hit callback
+func (t *Vision) OnHit(handle collision.Hittable) {
+	entity := handle.(*Vision).Entity()
+	fmt.Println(entity.Transform().Position())
+}
