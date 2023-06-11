@@ -258,7 +258,7 @@ func (b *BVTree) Update() {
 	}
 }
 
-func (b *BVTree) RelocateCollider(collider Collider) bool {
+func (b *BVTree) UpdateCollider(collider Collider) bool {
 	node := b.colliders[collider]
 	if node == nil {
 		panic("")
@@ -347,35 +347,115 @@ func (b *BVTree) updateNodes(node *BVTreeNode) {
 //	}
 //}
 
-func (b *BVTree) Intersect(collider Collider, iterator *Iterator) {
+func (b *BVTree) Intersect(collider Collider) int {
 	if b.root == nil {
-		return
+		return 0
 	}
 
 	aabb := collider.AABB(0)
-	queue := iterator.cache //util.NewQueue[*BVTreeNode]()
-	queue.Push(b.root)
+	var nodes []*BVTreeNode
+	//var bounds []Collider
+	var node *BVTreeNode
+	nodes = append(nodes, b.root)
+	colcount := 0
 
-	for !queue.Empty() {
-		node := queue.Pop()
+	for len(nodes) > 0 {
+		size := len(nodes)
+		top := size - 1
+		node, nodes = nodes[top], nodes[:top]
 		if node.fatAabb.Intersect(aabb) {
 			if node.IsLeaf() {
-				node.collider.Intersect(collider)
+				//bounds = append(bounds, node.collider)
+				if node.collider.Intersect(collider) {
+					colcount++
+				}
 			} else {
 				if node.right != nil {
-					queue.Push(node.right)
+					nodes = append(nodes, node.right)
 				}
 				if node.left != nil {
-					queue.Push(node.left)
+					nodes = append(nodes, node.left)
 				}
 			}
 		}
 	}
+	return colcount
+}
+
+func (b *BVTree) IntersectHeapStack(collider Collider) int {
+	if b.root == nil {
+		return 0
+	}
+
+	aabb := collider.AABB(0)
+	//queue := make([]*BVTreeNode, 0, 256)
+	//var nodes []*BVTreeNode
+	//var node *BVTreeNode
+	stack := &Stack[*BVTreeNode]{}
+	//nodes = append(nodes, b.root)
+	stack.Push(b.root)
+	colcount := 0
+
+	for !stack.Empty() {
+		node := stack.Pop()
+		if node.fatAabb.Intersect(aabb) {
+			if node.IsLeaf() {
+				if node.collider.Intersect(collider) {
+					colcount++
+				}
+			} else {
+				if node.right != nil {
+					stack.Push(node.right)
+				}
+				if node.left != nil {
+					stack.Push(node.left)
+				}
+			}
+		}
+	}
+	return colcount
+}
+
+func (b *BVTree) IntersectQueue(collider Collider) []Collider {
+	hits := make([]Collider, 0, 256)
+
+	if b.root == nil {
+		return hits
+	}
+
+	aabb := collider.AABB(0)
+
+	var nodes []*BVTreeNode
+	var node *BVTreeNode
+
+	nodes = append(nodes, b.root)
+
+	for len(nodes) > 0 {
+		size := len(nodes)
+		top := size - 1
+		node, nodes = nodes[top], nodes[:top]
+		if node.fatAabb.Intersect(aabb) {
+			if node.IsLeaf() {
+				if node.collider.Intersect(collider) {
+					hits = append(hits, collider)
+				}
+			} else {
+				if node.right != nil {
+					nodes = append(nodes, node.right)
+				}
+				if node.left != nil {
+					nodes = append(nodes, node.left)
+				}
+			}
+		}
+	}
+	return hits
 }
 
 type Iterator struct {
-	cache *util.Queue[*BVTreeNode]
-	tree  *BVTree
+	//nodes *util.Queue[*BVTreeNode]
+	colliders *util.Queue[Collider]
+	tree      *BVTree
 }
 
 func (q *Iterator) SearchRadius(center vector3.Vector3, radius float64, call func(x Collider)) {
@@ -396,32 +476,22 @@ func (q *Iterator) SearchRadius(center vector3.Vector3, radius float64, call fun
 }
 
 func (q *Iterator) Search(collider Collider) {
-	//q.tree.Query(collider.AABB(0), q)
-	q.tree.Intersect(collider, q)
-	//fmt.Println("bphase", q.count)
-
-	//for i := 0; i < q.count; i++ {
-	//	if q.colliders[i].Intersect(collider) {
-	//		//q.rables[q.rcount] = i
-	//		//q.rcount++
-	//		call(q.colliders[i])
-	//	}
-	//}
+	//q.tree.IntersectQueue(collider, q.colliders)
 }
 
-func (q *Iterator) SearchAsync(collider Collider) chan bool {
-	c := make(chan bool)
-	go func() {
-		q.tree.Intersect(collider, q)
-		c <- true
-	}()
-	return c
-}
+//func (q *Iterator) SearchAsync(collider Collider) chan bool {
+//	c := make(chan bool)
+//	go func() {
+//		q.tree.Intersect(collider, q)
+//		c <- true
+//	}()
+//	return c
+//}
 
 func (b *BVTree) NewIterator() *Iterator {
 	return &Iterator{
-		tree:  b,
-		cache: util.NewQueue[*BVTreeNode](),
+		tree:      b,
+		colliders: util.NewQueue[Collider](),
 	}
 }
 
@@ -503,6 +573,25 @@ type Snapshot struct {
 	Size   vector3.Vector3
 	Radius float64
 	IsLeaf bool
+}
+
+type Stack[T any] struct {
+	nodes []T
+}
+
+func (s *Stack[T]) Empty() bool {
+	return len(s.nodes) == 0
+}
+
+func (s *Stack[T]) Push(item T) {
+	s.nodes = append(s.nodes, item)
+}
+
+func (s *Stack[T]) Pop() T {
+	var item T
+	top := len(s.nodes) - 1
+	item, s.nodes = s.nodes[top], s.nodes[:top]
+	return item
 }
 
 //type cache struct {

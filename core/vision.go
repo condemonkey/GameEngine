@@ -13,16 +13,14 @@ type Vision struct {
 	BaseComponent
 	UpdatableComponent
 	collision.Hittable
-	radius          float64
 	visibleEntities []collision.Collider
-	collider        collision.Collider
+	cube            collision.Collider
 	tree            *collision.BVTree
 }
 
 func NewVision(radius float64, tree *collision.BVTree) *Vision {
 	return &Vision{
-		radius: radius,
-		collider: collision.NewCollider(geo.Sphere{
+		cube: collision.NewCollider(geo.Sphere{
 			Radius: radius,
 		}),
 		tree: tree,
@@ -30,13 +28,12 @@ func NewVision(radius float64, tree *collision.BVTree) *Vision {
 }
 
 func (t *Vision) Awake() {
-	t.collider.SetScale(t.Transform().Scale())
-	t.collider.SetPosition(t.Transform().Position())
-	t.collider.SetHandle(t)
+	t.cube.SetHandle(t)
 }
 
 func (t *Vision) Update(dt int) {
 	// 범위 안 object들을 검출
+	t.tree.Intersect(t.cube)
 	//t.visibleEntities = t.tree.Query(t.collider)
 }
 

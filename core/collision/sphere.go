@@ -25,10 +25,10 @@ func (s *SphereCollider) Intersect(a Collider) bool {
 	//	s.handle.OnHit(a.Handle())
 	//}
 
-	if hit {
-		s.CallCollisionHandle(a)
-		a.CallCollisionHandle(s)
-	}
+	//if hit {
+	//	s.CallCollisionHandle(a)
+	//	a.CallCollisionHandle(s)
+	//}
 
 	return hit
 }

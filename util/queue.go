@@ -5,7 +5,7 @@ const minQueueLen = 1024
 // Queue represents a single instance of the queue data structure.
 
 type Queue[V any] struct {
-	buf               []*V
+	buf               []V
 	head, tail, count int
 }
 
@@ -13,7 +13,7 @@ type Queue[V any] struct {
 
 func NewQueue[V any]() *Queue[V] {
 	return &Queue[V]{
-		buf: make([]*V, minQueueLen),
+		buf: make([]V, minQueueLen),
 	}
 }
 
@@ -31,7 +31,7 @@ func (q *Queue[V]) Empty() bool {
 // this can result in shrinking if the queue is less than half-full
 
 func (q *Queue[V]) resize() {
-	newBuf := make([]*V, q.count<<1)
+	newBuf := make([]V, q.count<<1)
 
 	if q.tail > q.head {
 		copy(newBuf, q.buf[q.head:q.tail])
@@ -52,7 +52,7 @@ func (q *Queue[V]) Push(elem V) {
 		q.resize()
 	}
 
-	q.buf[q.tail] = &elem
+	q.buf[q.tail] = elem
 	// bitwise modulus
 	q.tail = (q.tail + 1) & (len(q.buf) - 1)
 	q.count++
@@ -65,7 +65,7 @@ func (q *Queue[V]) Peek() V {
 	if q.count <= 0 {
 		panic("queue: Peek() called on empty queue")
 	}
-	return *(q.buf[q.head])
+	return q.buf[q.head]
 }
 
 // Get returns the element at index i in the queue. If the index is
@@ -82,7 +82,7 @@ func (q *Queue[V]) Get(i int) V {
 		panic("queue: Get() called with index out of range")
 	}
 	// bitwise modulus
-	return *(q.buf[(q.head+i)&(len(q.buf)-1)])
+	return q.buf[(q.head+i)&(len(q.buf)-1)]
 }
 
 // Remove removes and returns the element from the front of the queue. If the
@@ -93,7 +93,7 @@ func (q *Queue[V]) Pop() V {
 		panic("queue: Remove() called on empty queue")
 	}
 	ret := q.buf[q.head]
-	q.buf[q.head] = nil
+	//q.buf[q.head] = nil
 	// bitwise modulus
 	q.head = (q.head + 1) & (len(q.buf) - 1)
 	q.count--
@@ -101,5 +101,5 @@ func (q *Queue[V]) Pop() V {
 	if len(q.buf) > minQueueLen && (q.count<<2) == len(q.buf) {
 		q.resize()
 	}
-	return *ret
+	return ret
 }

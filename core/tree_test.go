@@ -1,4 +1,4 @@
-package collision
+package core
 
 import (
 	"game-engine/core/geo"
@@ -8,54 +8,6 @@ import (
 	"testing"
 	"time"
 )
-
-func TestCollision(t *testing.T) {
-	tree := NewBVTree()
-	collider1 := NewCollider(geo.NewSphere(0.5))
-	collider1.SetPosition(vector3.Vector3{X: 0, Y: 0, Z: 0})
-	collider1.SetCollisionHandle(func(hit Collider) {
-	})
-
-	tree.AddCollider(collider1)
-
-	collider := NewCollider(geo.NewSphere(0.5))
-	collider.SetPosition(vector3.Vector3{X: 0.6, Y: 0.6, Z: 0.6})
-	collider.SetCollisionHandle(func(hit Collider) {
-	})
-
-	//abs := tree.Query(collider)
-	//for _, col := range abs {
-	//	col.Intersect(collider)
-	//}
-	//t.Log(abs)
-	//
-	//result := collider.Intersect(collider1)
-	//t.Log(result)
-}
-
-func TestUpdatePosition(t *testing.T) {
-	tree := NewBVTree()
-	collider1 := NewCollider(geo.NewSphere(0.5))
-	collider1.SetPosition(vector3.Vector3{X: 0, Y: 0, Z: 0})
-	collider1.SetCollisionHandle(func(hit Collider) {
-	})
-
-	tree.AddCollider(collider1)
-
-	collider := NewCollider(geo.NewSphere(0.5))
-	collider.SetPosition(vector3.Vector3{X: 0.6, Y: 0.6, Z: 0.6})
-	collider.SetCollisionHandle(func(hit Collider) {
-	})
-
-	//abs := tree.Query(collider)
-	//for _, col := range abs {
-	//	col.Intersect(collider)
-	//}
-	//t.Log(abs)
-	//
-	//result := collider.Intersect(collider1)
-	//t.Log(result)
-}
 
 func TestTree(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
@@ -115,12 +67,11 @@ func TestTree(t *testing.T) {
 	//	time.Sleep(time.Millisecond * 30)
 	//}
 
-	//queue := util.NewQueue[Collider]()
 	for i := 0; i < loop; i++ {
 		count := 0
 		now = time.Now()
 		for j := 0; j < 5000; j++ {
-			count = tree.Intersect(collider)
+			count = tree.Intersect2(collider)
 		}
 		t.Log("detect time3", time.Now().Sub(now).Milliseconds(), "collide", count)
 		time.Sleep(time.Millisecond * 30)
@@ -130,19 +81,9 @@ func TestTree(t *testing.T) {
 		count := 0
 		now = time.Now()
 		for j := 0; j < 5000; j++ {
-			count = len(tree.IntersectQueue(collider))
+			count = tree.IntersectBp2(collider)
 		}
 		t.Log("detect time4", time.Now().Sub(now).Milliseconds(), "collide", count)
-		time.Sleep(time.Millisecond * 30)
-	}
-
-	for i := 0; i < loop; i++ {
-		count := 0
-		now = time.Now()
-		for j := 0; j < 5000; j++ {
-			count = tree.IntersectHeapStack(collider)
-		}
-		t.Log("detect time5", time.Now().Sub(now).Milliseconds(), "collide", count)
 		time.Sleep(time.Millisecond * 30)
 	}
 
