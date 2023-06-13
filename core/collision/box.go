@@ -22,7 +22,7 @@ func (s *BoxCollider) AABB(fatter float64) *AABB {
 	return aabb
 }
 
-func (s *BoxCollider) IntersectSphere(other *SphereCollider) bool {
+func (s *BoxCollider) IntersectSphere(other *Sphere) bool {
 	return true
 }
 

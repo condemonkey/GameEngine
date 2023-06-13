@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"game-engine/core/collision"
-	"game-engine/core/geo"
 	"game-engine/math64/vector3"
 )
 
@@ -14,27 +13,31 @@ type Vision struct {
 	UpdatableComponent
 	collision.Hittable
 	visibleEntities []collision.Collider
-	cube            collision.Collider
-	tree            *collision.BVTree
+	query           collision.TreeQuery
+	radius          float64
+	cnt             int
 }
 
-func NewVision(radius float64, tree *collision.BVTree) *Vision {
+func NewVision(radius float64) *Vision {
 	return &Vision{
-		cube: collision.NewCollider(geo.Sphere{
-			Radius: radius,
-		}),
-		tree: tree,
+		radius: radius,
 	}
 }
 
 func (t *Vision) Awake() {
-	t.cube.SetHandle(t)
+	t.query = t.Level().TreeQuery()
 }
 
 func (t *Vision) Update(dt int) {
-	// 범위 안 object들을 검출
-	t.tree.Intersect(t.cube)
-	//t.visibleEntities = t.tree.Query(t.collider)
+	//t.Transform().SetPosition(vector3.Zero)
+}
+
+func (t *Vision) FinalUpdate(dt int) {
+	//t.query.IntersectRangeAsync(t.Transform().Position(), t.radius, func(hits int) {
+	//
+	//})
+	t.query.IntersectRangeCollidersAsync(t.Transform().Position(), t.radius, func(hits []*collision.Collider) {
+	})
 }
 
 func (t *Vision) VisibleEntities() []collision.Collider {

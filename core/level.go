@@ -2,17 +2,18 @@ package core
 
 import (
 	"game-engine/core/collision"
-	"game-engine/core/geo"
 )
 
 type Level interface {
 	NewEntity(name, tag string)
 	AddEntity(entity *Entity)
 	RemoveEntity(entity *Entity)
-	FindEntitiesOverlapCollider(collider collision.Collider) []collision.Collider
+	RelocateEntity(entity *Entity)
+	TreeQuery() collision.TreeQuery
 	Load()
 	OnLoad()
 	OnDestroy()
+	SaveSnapshot()
 }
 
 type BaseLevel struct {
@@ -36,15 +37,25 @@ func (b *BaseLevel) AddLevelComponent(comp Component) {
 
 func (b *BaseLevel) CreateEntity(name, tag string) *Entity {
 	entity := NewEntity(b, name, tag)
-	entity.AddComponent(NewCollider(collision.NewCollider(geo.NewSphere(0.5))))
+	entity.AddComponent(NewCollider(collision.NewSphereCollider(0.5))) // 디폴트.
 	entity.AddComponent(NewTransform())
 	return entity
 }
 
+func (b *BaseLevel) CreateEmptyEntity(name, tag string) *Entity {
+	entity := NewEntity(b, name, tag)
+	return entity
+}
+
 func (b *BaseLevel) AddEntity(entity *Entity) {
+	// 모든 컴포넌트 초기화 및 활성화
 	entity.awake()
-	b.entities[entity.Id()] = entity
+
+	// 공간에 추가
 	b.tree.AddCollider(entity.Collider().CollisionCollider())
+
+	// 완료
+	b.entities[entity.Id()] = entity
 }
 
 func (b *BaseLevel) RemoveEntity(entity *Entity) {
@@ -52,20 +63,27 @@ func (b *BaseLevel) RemoveEntity(entity *Entity) {
 	b.tree.RemoveCollider(entity.Collider().CollisionCollider())
 }
 
-func (b *BaseLevel) FindEntitiesOverlapCollider(collider collision.Collider) []collision.Collider {
-	return nil
-	//return b.tree.Query(collider)
+func (b *BaseLevel) RelocateEntity(entity *Entity) {
+	b.tree.UpdateCollider(entity.Collider().CollisionCollider())
+}
+
+func (b *BaseLevel) TreeQuery() collision.TreeQuery {
+	return b.tree
 }
 
 func (b *BaseLevel) Update(dt int) {
-	b.entity.update(dt)
+	//b.entity.update(dt)
 	for _, entity := range b.entities {
+		entity.update(dt)
 		//if entity.Attribute(IsTransformDirty) {
-		//	// update transform position???????
+		//	b.tree.UpdateCollider(entity.Collider().CollisionCollider())
 		//	entity.SetAttribute(IsTransformDirty, false)
 		//}
-		entity.update(dt)
 	}
+	for _, entity := range b.entities {
+		entity.finalUpdate(dt)
+	}
+	b.tree.WaitGroup()
 }
 
 func (b *BaseLevel) Load() {
@@ -76,4 +94,8 @@ func (b *BaseLevel) OnLoad() {
 }
 
 func (b *BaseLevel) OnDestroy() {
+}
+
+func (b *BaseLevel) SaveSnapshot() {
+	b.tree.Snapshot()
 }

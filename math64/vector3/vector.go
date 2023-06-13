@@ -163,3 +163,10 @@ func DivScalar(scalar float64, a Vector3) Vector3 {
 		scalar / a.Z,
 	}
 }
+
+func Distance(a Vector3, b Vector3) float64 {
+	dx := a.X - b.X
+	dy := a.Y - b.Y
+	dz := a.Z - b.Z
+	return math.Sqrt(dx*dx + dy*dy + dz*dz)
+}

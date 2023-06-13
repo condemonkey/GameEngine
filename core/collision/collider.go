@@ -1,7 +1,7 @@
 package collision
 
 import (
-	"game-engine/core/geo"
+	"game-engine/core/transform"
 	"game-engine/math64/vector3"
 )
 
@@ -31,79 +31,132 @@ type Hittable interface {
 	Scale() vector3.Vector3
 }
 
-type OnCollisionFunc func(hit Collider)
+type OnCollisionFunc func(hit *Collider)
 
-type Collider interface {
-	Intersect(other Collider) bool
-	IntersectSphere(other *SphereCollider) bool
+//type Collider interface {
+//	Intersect(other Collider) bool
+//	IntersectSphere(other *Sphere) bool
+//	IntersectDistance(maxDistance float64, origin vector3.Vector3) bool
+//	AABB(expand float64) *AABB
+//	SetPosition(position vector3.Vector3)
+//	Center() vector3.Vector3
+//	SetScale(scale vector3.Vector3)
+//	SetHandle(user Hittable)
+//	SetCollisionHandle(handler OnCollisionFunc)
+//	CallCollisionHandle(hit Collider)
+//	Handle() Hittable
+//	Type() geo.ShapeType
+//}
+
+type ShapeType int
+
+const (
+	ShapeSphere  ShapeType = 1
+	ShapeCapsule           = 2
+	ShapeBox               = 3
+	ShapePlane             = 4
+)
+
+type ShapeCollider interface {
 	AABB(expand float64) *AABB
-	SetPosition(position vector3.Vector3)
+	IntersectSphere(other *Sphere) bool
+	IntersectDistance(maxDistance float64, origin vector3.Vector3) bool
+	Type() ShapeType
 	Center() vector3.Vector3
-	SetScale(scale vector3.Vector3)
-	SetHandle(user Hittable)
-	SetCollisionHandle(handler OnCollisionFunc)
-	CallCollisionHandle(hit Collider)
-	Handle() Hittable
-	Type() geo.ShapeType
 }
 
-func NewCollider(shape geo.Shape) Collider {
-	switch shape.Type() {
-	case geo.ShapeSphere:
-		return &SphereCollider{
-			ShapeCollider: &ShapeCollider{
-				scale:       vector3.One,
-				parentScale: vector3.One,
-			},
-			sphere: shape.(geo.Sphere),
-		}
+type Collider struct {
+	transform *transform.Transform // 부모 transform
+	center    vector3.Vector3      // 부모기준 센터
+	handle    Hittable
+	handler   OnCollisionFunc
+	shape     ShapeCollider
+}
+
+func NewSphereCollider(radius float64) *Collider {
+	collider := &Collider{
+		transform: transform.NewTransform(),
 	}
-	panic("")
+	shape := &Sphere{
+		radius:   radius,
+		collider: collider,
+	}
+	collider.shape = shape
+	return collider
 }
 
-type ShapeCollider struct {
-	Collider
-	parentPosition vector3.Vector3 // 부모 포지션
-	parentScale    vector3.Vector3 // 부모 스케일
-	scale          vector3.Vector3
-	center         vector3.Vector3
-	handle         Hittable
-	handler        OnCollisionFunc
+//func NewBoxCollider(size vector3.Vector3) *Collider {
+//	collider := &Collider{
+//		transform: transform.NewTransform(),
+//	}
+//	shape := &Sphere{
+//		collider: collider,
+//	}
+//	collider.shape = shape
+//	return collider
+//}
+
+func (s *Collider) Shape() ShapeCollider {
+	return s.shape
 }
 
-func (s *ShapeCollider) Center() vector3.Vector3 {
-	return s.parentPosition.Add(s.center)
+func (s *Collider) IntersectShape(other *Collider) bool {
+	hit := false
+	switch other.Type() {
+	case ShapeSphere:
+		hit = s.shape.IntersectSphere(other.shape.(*Sphere))
+		break
+	default:
+		panic("invalid collision shape type")
+	}
+	return hit
 }
 
-func (s *ShapeCollider) SetPosition(position vector3.Vector3) {
-	s.parentPosition = position
+func (s *Collider) IntersectDistance(origin vector3.Vector3, distance float64) bool {
+	return s.shape.IntersectDistance(distance, origin)
 }
 
-func (s *ShapeCollider) SetScale(scale vector3.Vector3) {
-	s.parentScale = scale
+func (s *Collider) Center() vector3.Vector3 {
+	return s.transform.Position.Add(s.center)
 }
 
-func (s *ShapeCollider) Handle() Hittable {
+func (s *Collider) SetTransform(transform *transform.Transform) {
+	s.transform = transform
+}
+
+func (s *Collider) SetPosition(position vector3.Vector3) {
+	s.transform.Position = position
+}
+
+func (s *Collider) SetScale(scale vector3.Vector3) {
+	s.transform.Scale = scale
+}
+
+func (s *Collider) Handle() Hittable {
 	return s.handle
 }
 
-func (s *ShapeCollider) SetHandle(user Hittable) {
-	s.handle = user
-	s.SetPosition(s.handle.Position())
-	s.SetScale(s.handle.Scale())
+func (s *Collider) Type() ShapeType {
+	return s.shape.Type()
 }
 
-func (s *ShapeCollider) SetCollisionHandle(handler OnCollisionFunc) {
-	s.handler = handler
-}
+//func (s *Collider) SetHandle(user Hittable) {
+//	s.handle = user
+//	s.SetPosition(s.handle.Position())
+//	s.SetScale(s.handle.Scale())
+//}
 
-func (s *ShapeCollider) CallCollisionHandle(hit Collider) {
-	if s.handler == nil {
-		return
-	}
-	s.handler(hit)
-}
+//func (s *Collider) SetCollisionHandle(handler OnCollisionFunc) {
+//	s.handler = handler
+//}
+//
+//func (s *Collider) CallCollisionHandle(hit *Collider) {
+//	if s.handler == nil {
+//		return
+//	}
+//	s.handler(hit)
+//}
 
-func (s *ShapeCollider) AABB(expend float64) *AABB {
-	return s.AABB(expend)
+func (s *Collider) AABB(expend float64) *AABB {
+	return s.shape.AABB(expend)
 }

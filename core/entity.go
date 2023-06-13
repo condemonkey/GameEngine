@@ -61,6 +61,10 @@ func (e *Entity) Vision() *Vision {
 	return e.vision
 }
 
+func (e *Entity) Active() bool {
+	return e.active
+}
+
 func (e *Entity) SetAttribute(attr EntityAttribute, flag bool) {
 	if flag {
 		e.attributes.Set(uint64(attr))
@@ -155,9 +159,9 @@ func (e *Entity) Name() string {
 	return e.name
 }
 
-func (e *Entity) Awake() {
-	e.awake()
-}
+//	func (e *Entity) Awake() {
+//		e.awake()
+//	}
 func (e *Entity) awake() {
 	for _, comp := range e.components {
 		comp.Awake()
@@ -175,14 +179,23 @@ func (e *Entity) update(dt int) {
 	}
 }
 
-func (e *Entity) Update(dt int) {
+func (e *Entity) finalUpdate(dt int) {
 	if !e.active {
 		return
 	}
 	for _, comp := range e.updateComponents {
-		comp.Update(dt)
+		comp.FinalUpdate(dt)
 	}
 }
+
+//func (e *Entity) Update(dt int) {
+//	if !e.active {
+//		return
+//	}
+//	for _, comp := range e.updateComponents {
+//		comp.Update(dt)
+//	}
+//}
 
 func (e *Entity) start() {
 	for _, comp := range e.components {

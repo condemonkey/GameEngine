@@ -2,6 +2,7 @@ package core
 
 type UpdatableComponent interface {
 	Update(dt int)
+	FinalUpdate(dt int)
 }
 
 type Component interface {
@@ -76,4 +77,8 @@ func (b *BaseComponent) Collider() *Collider {
 
 func (b *BaseComponent) Vision() *Vision {
 	return b.entity.Vision()
+}
+
+func (b *BaseComponent) Level() Level {
+	return b.entity.Level()
 }
