@@ -14,6 +14,22 @@ type Vector3 struct {
 	Z float64
 }
 
+func RandSpherePoint(center Vector3, radius float64) Vector3 {
+	return Vector3{
+		X: math64.RandFloat(-radius+center.X, radius+center.X),
+		Y: math64.RandFloat(-radius+center.Y, radius+center.Y),
+		Z: math64.RandFloat(-radius+center.Z, radius+center.Z),
+	}
+}
+
+func RandomCirclePoint(x, z, radius float64) Vector3 {
+	return Vector3{
+		X: math64.RandFloat(-radius+x, radius+x),
+		Y: 0,
+		Z: math64.RandFloat(-radius+z, radius+z),
+	}
+}
+
 func (v Vector3) Max() float64 {
 	var values = [3]float64{v.X, v.Y, v.Z}
 	max := values[0]
@@ -71,6 +87,14 @@ func (v Vector3) Normalize() Vector3 {
 		}
 	}
 	return v
+}
+
+func (v Vector3) Lerp(v2 Vector3, f float64) Vector3 {
+	return Vector3{
+		(v2.X-v.X)*f + v.X,
+		(v2.Y-v.Y)*f + v.Y,
+		(v2.Z-v.Z)*f + v.Z,
+	}
 }
 
 func (v Vector3) At(i int) float64 {

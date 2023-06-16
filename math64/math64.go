@@ -1,6 +1,9 @@
 package math64
 
-import "math"
+import (
+	"math"
+	"math/rand"
+)
 
 const (
 
@@ -61,4 +64,12 @@ func Max(values ...float64) float64 {
 
 func Square(a float64) float64 {
 	return a * a
+}
+
+func Clamp(value, min, max float64) float64 {
+	return math.Max(min, math.Min(value, max))
+}
+
+func RandFloat(min, max float64) float64 {
+	return min + rand.Float64()*(max-min)
 }

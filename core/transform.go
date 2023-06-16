@@ -37,11 +37,9 @@ func (t *Transform) InternalTransform() *transform.Transform {
 }
 
 func (t *Transform) SetPosition(pos vector3.Vector3) {
-	//t.entity.SetAttribute(IsTransformDirty, true)
 	t.transform.Position = pos
-	// space 에 추가 되기 전 까진 호출 하면 안됨
 	if t.Entity().Active() {
-		t.Level().RelocateEntity(t.entity)
+		t.entity.SetAttribute(IsTransformDirty, true)
 	}
 }
 

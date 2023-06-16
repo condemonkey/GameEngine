@@ -21,11 +21,13 @@ type Entity struct {
 	components       []Component
 	updateComponents []UpdatableComponent
 	active           bool
-	transform        *Transform
-	collider         *Collider
-	vision           *Vision
 	attributes       *util.Bitset64
 	level            Level
+
+	transform *Transform
+	collider  *Collider
+	vision    *Vision
+	network   *NetworkSession
 }
 
 var ids int = 0
@@ -48,6 +50,10 @@ func NewEntity(level Level, name, tag string) *Entity {
 //func (e *Entity) ParentTransform() *Transform {
 //	return e.parent
 //}
+
+func (e *Entity) NetworkSession() *NetworkSession {
+	return e.network
+}
 
 func (e *Entity) Transform() *Transform {
 	return e.transform
@@ -92,6 +98,9 @@ func (e *Entity) AddComponent(comp Component) Component {
 		break
 	case *Vision:
 		e.vision = comp.(*Vision)
+		break
+	case *NetworkSession:
+		e.network = comp.(*NetworkSession)
 		break
 	}
 

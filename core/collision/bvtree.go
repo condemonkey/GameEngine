@@ -14,7 +14,7 @@ type BVTreeNode struct {
 	parent   *BVTreeNode
 	left     *BVTreeNode
 	right    *BVTreeNode
-	collider *Collider
+	collider Collider
 	fatAabb  *AABB
 }
 
@@ -30,7 +30,7 @@ func (n *BVTreeNode) FatAABB() *AABB {
 	return n.fatAabb
 }
 
-func (n *BVTreeNode) Collider() *Collider {
+func (n *BVTreeNode) Collider() Collider {
 	return n.collider
 }
 
@@ -73,29 +73,24 @@ func (n *BVTreeNode) SetNode(node *util.PoolNode) {
 	n.pool = node
 }
 
-type TreeQuery interface {
-	IntersectRangeAsync(origin vector3.Vector3, distance float64, result func(hits int))
-	IntersectRange(origin vector3.Vector3, distance float64) int
-	IntersectRangeCollidersAsync(origin vector3.Vector3, distance float64, result func(colliders []*Collider))
-}
-
 // 스레드 세이프 안함
 type BVTree struct {
 	//	CollisionUtil::ColliderPairSet colliderPairSet;
 	//std::unordered_map<class Collider*, BVTreeNode*> colNodeMap;
+	TreeQuery
 	root      *BVTreeNode
 	nodes     *util.Pool[*BVTreeNode]
-	colliders map[*Collider]*BVTreeNode
+	colliders map[Collider]*BVTreeNode
 	cache     *util.Queue[*BVTreeNode]
 	wg        *sync.WaitGroup
 }
 
-func NewBVTree() *BVTree {
+func NewBVTree(wg *sync.WaitGroup) *BVTree {
 	tree := &BVTree{
 		nodes:     util.NewPool[*BVTreeNode](2048, func() *BVTreeNode { return &BVTreeNode{} }),
 		cache:     util.NewQueue[*BVTreeNode](),
-		colliders: make(map[*Collider]*BVTreeNode),
-		wg:        new(sync.WaitGroup),
+		colliders: make(map[Collider]*BVTreeNode),
+		wg:        wg,
 	}
 	return tree
 }
@@ -112,20 +107,20 @@ func (b *BVTree) NewNodeWithAABB(aabb *AABB) *BVTreeNode {
 	return node
 }
 
-func (b *BVTree) NewNodeWithCollider(collider *Collider) *BVTreeNode {
+func (b *BVTree) NewNodeWithCollider(collider Collider) *BVTreeNode {
 	node := b.NewNode()
 	node.fatAabb = collider.AABB(FatAABBFactor)
 	node.collider = collider
 	return node
 }
 
-func (b *BVTree) AddCollider(collider *Collider) {
+func (b *BVTree) AddCollider(collider Collider) {
 	node := b.NewNodeWithCollider(collider)
 	b.colliders[collider] = node
 	b.addNode(node)
 }
 
-func (b *BVTree) RemoveCollider(collider *Collider) {
+func (b *BVTree) RemoveCollider(collider Collider) {
 	node := b.colliders[collider]
 	assert(node != nil)
 	b.removeNode(node, true)
@@ -219,34 +214,15 @@ func (b *BVTree) removeNode(node *BVTreeNode, deleteNode bool) {
 	}
 }
 
-func (b *BVTree) Update() {
+func (b *BVTree) Update() int {
 	if b.root == nil {
-		return
+		return 0
 	}
 
-	// 캐시 리셋
-	//b.cache.reset()
-
-	// fatAABB범위 밖의 collider들을 검출 (리프까지 순회함)
-	//b.updateNodes(b.root)
-	//for i := 0; i < b.cache.count; i++ {
-	//	node := b.cache.nodes[i]
-	//	// 삭제
-	//	b.removeNode(node, false)
-	//}
-	//
-	//for i := 0; i < b.cache.count; i++ {
-	//	node := b.cache.nodes[i]
-	//	// 부모 박스 크기변경
-	//	node.UpdateLeafAABB()
-	//	// 노드 새로 추가
-	//	b.addNode(node)
-	//}
-
-	// stack
 	var relocates []*BVTreeNode
 
 	b.cache.Push(b.root)
+
 	for !b.cache.Empty() {
 		cur := b.cache.Pop()
 		if cur.left != nil {
@@ -268,9 +244,11 @@ func (b *BVTree) Update() {
 		node.UpdateLeafAABB()
 		b.addNode(node)
 	}
+
+	return len(relocates)
 }
 
-func (b *BVTree) UpdateCollider(collider *Collider) bool {
+func (b *BVTree) RelocateCollider(collider Collider) bool {
 	node := b.colliders[collider]
 	if node == nil {
 		panic("")
@@ -279,27 +257,9 @@ func (b *BVTree) UpdateCollider(collider *Collider) bool {
 		b.removeNode(node, false)
 		node.UpdateLeafAABB()
 		b.addNode(node)
+		return true
 	}
-	return true
-}
-
-func (b *BVTree) Raycast(ray *Ray, maxDistance float64, hit *RaycastHit) bool {
-	return b.raycast(b.root, ray, maxDistance, hit)
-}
-
-func (b *BVTree) raycast(node *BVTreeNode, ray *Ray, maxDistance float64, hit *RaycastHit) bool {
-	//if node == nil || !node.fatAabb.Raycast(ray, maxDistance, hit) {
-	//	return false
-	//}
-	//if node.IsLeaf() {
-	//	hitTmp := &RaycastHit{}
-	//	if node.collider.IntersectRay(ray, maxDistance, hitTmp) && hitTmp.distance < hit.distance {
-	//		return true
-	//	}
-	//	return false
-	//}
-	//return b.raycast(node.left, ray, maxDistance, hit) || b.raycast(node.right, ray, maxDistance, hit)
-	return true
+	return false
 }
 
 func (b *BVTree) updateNodes(node *BVTreeNode) {
@@ -317,150 +277,8 @@ func (b *BVTree) updateNodes(node *BVTreeNode) {
 	}
 }
 
-func (b *BVTree) IntersectRange(origin vector3.Vector3, distance float64) int {
-	if b.root == nil {
-		return 0
-	}
-	sphere := NewSphereCollider(distance)
-	sphere.SetPosition(origin)
-	return b.Intersect(sphere)
-}
-
-func (b *BVTree) IntersectRangeAsync(origin vector3.Vector3, distance float64, result func(hits int)) {
-	if b.root == nil {
-		return
-	}
-	b.wg.Add(1)
-	go func(origin vector3.Vector3, distance float64) {
-		defer b.wg.Done()
-		result(b.IntersectRange(origin, distance))
-	}(origin, distance)
-}
-
-func (b *BVTree) IntersectRangeCollidersAsync(origin vector3.Vector3, distance float64, result func(colliders []*Collider)) {
-	if b.root == nil {
-		return
-	}
-	b.wg.Add(1)
-	go func(origin vector3.Vector3, distance float64) {
-		defer b.wg.Done()
-		sphere := NewSphereCollider(distance)
-		sphere.SetPosition(origin)
-		var colliders []*Collider
-		b.IntersectColliders(sphere, &colliders)
-		result(colliders)
-	}(origin, distance)
-}
-
-func (b *BVTree) IntersectRangeCollider(origin vector3.Vector3, distance float64, result func(colliders []*Collider)) {
-	if b.root == nil {
-		return
-	}
-	sphere := NewSphereCollider(distance)
-	sphere.SetPosition(origin)
-	var colliders []*Collider
-	b.IntersectColliders(sphere, &colliders)
-	result(colliders)
-}
-
 func (b *BVTree) WaitGroup() *sync.WaitGroup {
 	return b.wg
-}
-
-func (b *BVTree) Intersect(collider *Collider) int {
-	if b.root == nil {
-		return 0
-	}
-
-	aabb := collider.AABB(0)
-
-	var stack [2048]*BVTreeNode
-	stack[0] = b.root
-	var top int = 1
-	colcount := 0
-
-	for top > 0 {
-		top--
-		node := stack[top]
-		fatAabb := node.fatAabb
-		if fatAabb.Intersect(aabb) {
-			if node.IsLeaf() {
-				if node.collider.IntersectShape(collider) {
-					colcount++
-				}
-			} else {
-				stack[top] = node.left
-				top++
-				stack[top] = node.right
-				top++
-			}
-		}
-	}
-	return colcount
-}
-
-func (b *BVTree) IntersectColliders(collider *Collider, results *[]*Collider) {
-	if b.root == nil {
-		return
-	}
-
-	aabb := collider.AABB(0)
-
-	var stack [2048]*BVTreeNode
-	stack[0] = b.root
-	var top int = 1
-
-	for top > 0 {
-		top--
-		node := stack[top]
-		fatAabb := node.fatAabb
-		if fatAabb.Intersect(aabb) {
-			if node.IsLeaf() {
-				if node.collider.IntersectShape(collider) {
-					*results = append(*results, node.collider)
-				}
-			} else {
-				stack[top] = node.left
-				top++
-				stack[top] = node.right
-				top++
-			}
-		}
-	}
-}
-
-func (b *BVTree) IntersectQueue(collider *Collider) int {
-	//hits := make([]Collider, 0, 256)
-
-	if b.root == nil {
-		return 0
-	}
-	hits := 0
-
-	aabb := collider.AABB(0)
-
-	queue := b.cache
-	queue.Push(b.root)
-
-	for !queue.Empty() {
-		node := queue.Pop()
-		if node.fatAabb.Intersect(aabb) {
-			if node.IsLeaf() {
-				if node.collider.IntersectShape(collider) {
-					hits++
-				}
-			} else {
-				if node.right != nil {
-					queue.Push(node.right)
-				}
-				if node.left != nil {
-					queue.Push(node.left)
-				}
-			}
-		}
-	}
-
-	return hits
 }
 
 // 모든 노드 순회
@@ -468,7 +286,9 @@ func (b *BVTree) Traverse(call func(node *BVTreeNode)) {
 	if b.root == nil {
 		return
 	}
+
 	b.cache.Push(b.root)
+
 	for !b.cache.Empty() {
 		cur := b.cache.Pop()
 		call(cur)
@@ -488,7 +308,9 @@ func (b *BVTree) Snapshot() {
 		aabb := node.FatAABB()
 		radius := float64(0)
 		if node.IsLeaf() {
-			radius = node.Collider().Shape().(*Sphere).Radius()
+			if node.Collider().Shape().(*SphereCollider) != nil {
+				radius = node.Collider().Shape().(*SphereCollider).Radius()
+			}
 		}
 		snapshots.Snapshots = append(snapshots.Snapshots, Snapshot{
 			Min:    aabb.Min(),
@@ -508,6 +330,119 @@ func (b *BVTree) Snapshot() {
 	w := bufio.NewWriter(f)
 	w.WriteString(string(bytes))
 	w.Flush()
+}
+
+type SearchCallback = func(handles []Collider)
+
+func (b *BVTree) RayCasting(ray Ray, result SearchCallback) {
+	if b.root == nil {
+		return
+	}
+
+	var colliders []Collider
+
+	var stack [2048]*BVTreeNode
+	stack[0] = b.root
+	var top int = 1
+
+	for top > 0 {
+		top--
+		node := stack[top]
+		fatAabb := node.fatAabb
+		if fatAabb.IntersectRay(ray) {
+			if node.IsLeaf() {
+				if node.collider.Shape().IntersectRay(ray) {
+					colliders = append(colliders, node.collider)
+				}
+			} else {
+				stack[top] = node.left
+				top++
+				stack[top] = node.right
+				top++
+			}
+		}
+	}
+
+	result(colliders)
+}
+
+func (b *BVTree) Intersect(collider Collider, colliders *[]Collider) {
+	if b.root == nil {
+		return
+	}
+
+	aabb := collider.AABB(0)
+
+	var stack [2048]*BVTreeNode
+	stack[0] = b.root
+	var top int = 1
+
+	for top > 0 {
+		top--
+		node := stack[top]
+		fatAabb := node.fatAabb
+		if fatAabb.Intersect(aabb) {
+			if node.IsLeaf() {
+				if node.collider.Intersect(collider) {
+					*colliders = append(*colliders, node.collider)
+				}
+			} else {
+				stack[top] = node.left
+				top++
+				stack[top] = node.right
+				top++
+			}
+		}
+	}
+}
+
+func (b *BVTree) CollidingSphereAsync(center vector3.Vector3, distance float64, result SearchCallback) {
+	if b.root == nil {
+		return
+	}
+	b.wg.Add(1)
+	go func(origin vector3.Vector3, distance float64, result SearchCallback) {
+		defer b.wg.Done()
+		b.CollidingSphere(center, distance, result)
+	}(center, distance, result)
+}
+
+func (b *BVTree) CollidingSphere(origin vector3.Vector3, distance float64, result SearchCallback) {
+	var colliders []Collider
+	b.Intersect(NewSphereCollider(origin, distance), &colliders)
+	result(colliders)
+}
+
+func (b *BVTree) CollidingBox(origin vector3.Vector3, size float64, result SearchCallback) {
+	if b.root == nil {
+		return
+	}
+
+	var colliders []Collider
+
+	aabb := NewAABBWithSize(origin, vector3.Vector3{X: size, Y: size, Z: size})
+
+	var stack [2048]*BVTreeNode
+	stack[0] = b.root
+	var top int = 1
+
+	for top > 0 {
+		top--
+		node := stack[top]
+		fatAabb := node.fatAabb
+		if fatAabb.Intersect(aabb) {
+			if node.IsLeaf() {
+				colliders = append(colliders, node.collider)
+			} else {
+				stack[top] = node.left
+				top++
+				stack[top] = node.right
+				top++
+			}
+		}
+	}
+
+	result(colliders)
 }
 
 type Snapshots struct {

@@ -13,7 +13,7 @@ type AABB struct {
 	max     vector3.Vector3
 }
 
-func NewAABB(center, size vector3.Vector3) *AABB {
+func NewAABBWithSize(center, size vector3.Vector3) *AABB {
 	extents := size.MulScalar(0.5)
 	return &AABB{
 		center:  center,
@@ -23,6 +23,16 @@ func NewAABB(center, size vector3.Vector3) *AABB {
 		extents: extents,
 	}
 }
+
+func NewAABBWithMinMax(min, max vector3.Vector3) *AABB {
+	center := max.Add(min).MulScalar(0.5)
+	size := max.Sub(center).MulScalar(2)
+	return NewAABBWithSize(center, size)
+}
+
+//func (a *AABB) Equal(b *AABB) bool {
+//	return a.min.Equal(*other.Min) && a.max.Equal(*other.Max)
+//}
 
 func (a *AABB) Center() vector3.Vector3 {
 	return a.center
@@ -42,6 +52,20 @@ func (a *AABB) Expend(amount float64) *AABB {
 	a.min = a.center.Sub(a.extents)
 	a.max = a.center.Add(a.extents)
 	return a
+}
+
+func (a *AABB) OctSplit() [8]*AABB {
+	return [8]*AABB{
+		NewAABBWithMinMax(vector3.Vector3{X: a.min.X, Y: a.min.Y, Z: a.min.Z}, vector3.Vector3{X: a.center.X, Y: a.center.Y, Z: a.center.Z}),
+		NewAABBWithMinMax(vector3.Vector3{X: a.min.X, Y: a.min.Y, Z: a.center.Z}, vector3.Vector3{X: a.center.X, Y: a.center.Y, Z: a.max.Z}),
+		NewAABBWithMinMax(vector3.Vector3{X: a.min.X, Y: a.center.Y, Z: a.min.Z}, vector3.Vector3{X: a.center.X, Y: a.max.Y, Z: a.center.Z}),
+		NewAABBWithMinMax(vector3.Vector3{X: a.min.X, Y: a.center.Y, Z: a.center.Z}, vector3.Vector3{X: a.center.X, Y: a.max.Y, Z: a.max.Z}),
+
+		NewAABBWithMinMax(vector3.Vector3{X: a.center.X, Y: a.min.Y, Z: a.min.Z}, vector3.Vector3{X: a.max.X, Y: a.center.Y, Z: a.center.Z}),
+		NewAABBWithMinMax(vector3.Vector3{X: a.center.X, Y: a.min.Y, Z: a.center.Z}, vector3.Vector3{X: a.max.X, Y: a.center.Y, Z: a.max.Z}),
+		NewAABBWithMinMax(vector3.Vector3{X: a.center.X, Y: a.center.Y, Z: a.min.Z}, vector3.Vector3{X: a.max.X, Y: a.max.Y, Z: a.center.Z}),
+		NewAABBWithMinMax(vector3.Vector3{X: a.center.X, Y: a.center.Y, Z: a.center.Z}, vector3.Vector3{X: a.max.X, Y: a.max.Y, Z: a.max.Z}),
+	}
 }
 
 func (a *AABB) Min() vector3.Vector3 {
@@ -70,14 +94,25 @@ func (a *AABB) ContainsPoint(point vector3.Vector3) bool {
 		(point.Z >= a.min.Z && point.Z <= a.max.Z)
 }
 
-func (a *AABB) Contains(other *AABB) bool {
-	return a.ContainsPoint(other.min) && a.ContainsPoint(other.max)
+func (a *AABB) Contains(b *AABB) bool {
+	return a.ContainsPoint(b.min) && a.ContainsPoint(b.max)
 }
 
-func (a *AABB) Intersect(other *AABB) bool {
-	return (a.min.X <= other.max.X && a.max.X >= other.min.X) &&
-		(a.min.Y <= other.max.Y && a.max.Y >= other.min.Y) &&
-		(a.min.Z <= other.max.Z && a.max.Z >= other.min.Z)
+//func (a *AABB) Contains2(v vector3.Vector3) bool {
+//	return (a.min.X <= v.X && v.X <= a.max.X) &&
+//		(a.min.Y <= v.Y && v.Y <= a.max.Y) &&
+//		(a.min.Z <= v.Z && v.Z <= a.max.Z)
+//}
+//
+//func (a *AABB) Fit(b *AABB) bool {
+//	return b.Contains2(a.max) && a.Contains2(a.min)
+//}
+
+func (a *AABB) Intersect(b *AABB) bool {
+	return !(a.max.X < b.min.X || b.max.X < a.min.X || a.max.Y < b.min.Y || b.max.Y < a.min.Y || a.max.Z < b.min.Z || b.max.Z < a.min.Z)
+	//return (a.min.X <= b.max.X && a.max.X >= b.min.X) &&
+	//	(a.min.Y <= b.max.Y && a.max.Y >= b.min.Y) &&
+	//	(a.min.Z <= b.max.Z && a.max.Z >= b.min.Z)
 }
 
 func (a *AABB) SurfaceArea() float64 {
@@ -93,69 +128,34 @@ func (a *AABB) EncapsulatePoint(point vector3.Vector3) {
 	a.max.Z = math.Max(a.max.Z, point.Z)
 }
 
-func (a *AABB) Raycast(ray *Ray, maxDistance float64, hit *RaycastHit) bool {
-	tmin := -math.MaxFloat64
-	tmax := math.MaxFloat64
+func (a *AABB) IntersectRay(ray Ray) bool {
+	dirfrac := vector3.Vector3{}
+	dirfrac.X = 1.0 / ray.direction.X
+	dirfrac.Y = 1.0 / ray.direction.Y
+	dirfrac.Z = 1.0 / ray.direction.Z
+	// lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
+	// r.org is origin of ray
+	t1 := (a.min.X - ray.origin.X) * dirfrac.X
+	t2 := (a.max.X - ray.origin.X) * dirfrac.X
+	t3 := (a.min.Y - ray.origin.Y) * dirfrac.Y
+	t4 := (a.max.Y - ray.origin.Y) * dirfrac.Y
+	t5 := (a.min.Z - ray.origin.Z) * dirfrac.Z
+	t6 := (a.max.Z - ray.origin.Z) * dirfrac.Z
 
-	const epsilon float64 = 0.00001
+	tmin := math.Max(math.Max(math.Min(t1, t2), math.Min(t3, t4)), math.Min(t5, t6))
+	tmax := math.Min(math.Min(math.Max(t1, t2), math.Max(t3, t4)), math.Max(t5, t6))
 
-	point := ray.Point(maxDistance)
-	direction := ray.Direction()
-
-	for i := 0; i < 3; i++ {
-		// If the ray is parallel to the slab
-		if math.Abs(direction.At(i)) < epsilon {
-			// If origin of the ray is not inside the slab, no hit
-			if point.At(i) < a.min.At(i) || point.At(i) > a.max.At(i) {
-				return false
-			}
-		} else {
-			rayDirectionInverse := 1 / direction.At(i)
-			t1 := (a.min.At(i) - point.At(i)) * rayDirectionInverse
-			t2 := (a.max.At(i) - point.At(i)) * rayDirectionInverse
-			if t1 > t2 {
-				// Swap t1 and t2
-				tTemp := t2
-				t2 = t1
-				t1 = tTemp
-			}
-			tmin = math.Max(tmin, t1)
-			tmax = math.Min(tmax, t2)
-
-			// Exit with no collision
-			if tmin > tmax {
-				return false
-			}
-		}
+	// if tmax < 0, ray (line) is intersecting AABB, but whole AABB is behing us
+	if tmax < 0 {
+		return false
 	}
 
-	// Compute the hit point
-	//hit = point + tMin*rayDirection
-	return true
+	// if tmin > tmax, ray doesn't intersect AABB
+	if tmin > tmax {
+		return false
+	}
 
-	//if maxDistance > 0 {
-	//	tmax = math.Inf(1)
-	//}
-	//e := a.extents
-	//o := vector3.Sub(ray.Origin(), a.center)
-	//d := ray.Direction()
-	//invD := vector3.DivScalar(1.0, d)
-	//
-	//var t [6]float64
-	//for i := 0; i < 3; i++ {
-	//	t[2*i] = -(e.At(i) + o.At(i)) * invD.At(i)
-	//	t[2*i+1] = (e.At(i) - o.At(i)) * invD.At(i)
-	//}
-	//
-	//tmin = math64.Max(math.Min(t[0], t[1]), math.Min(t[2], t[3]), math.Min(t[4], t[5]))
-	//tmax = math64.Min(math.Max(t[0], t[1]), math.Max(t[2], t[3]), math.Max(t[4], t[5]))
-	//if tmax < 0 || tmin > tmax {
-	//	return false
-	//}
-	//if tmin < 0 {
-	//	tmin = tmax
-	//}
-	//hit = NewRaycastHit(nil, tmin, vector3.Sum(o, d.MulScalar(tmin)), vector3.Zero)
+	return true
 }
 
 func AABBExpand(a *AABB, amount float64) {

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"game-engine/core/collision"
 	"game-engine/math64"
 	"game-engine/math64/vector3"
 	"math/rand"
@@ -23,7 +22,7 @@ func (b *Level1) OnDestroy() {
 }
 
 var defaultLevel = &Level1{
-	BaseLevel: NewBaseLevel(),
+	BaseLevel: NewBaseLevel("Test"),
 }
 
 func TestLevel(t *testing.T) {
@@ -31,12 +30,12 @@ func TestLevel(t *testing.T) {
 
 	min, max := -2000, 2000
 	ymin, ymax := 10, 10
-	ecount := 5000
+	ecount := 8000
 
 	for i := 0; i < ecount; i++ {
-		entity := defaultLevel.CreateEmptyEntity("test", "test1level")
-		entity.AddComponent(NewCollider(collision.NewSphereCollider(1))) // 크기1
-		entity.AddComponent(NewVision(100))                              // 시야 테스트
+		entity := defaultLevel.CreateEmptyEntity("test", "player")
+		entity.AddComponent(NewSphereCollider(1)) // 크기1
+		entity.AddComponent(NewVision())          // 시야 테스트
 		entity.AddComponent(NewTransform())
 
 		x := float64(math64.RandInt(min, max))
@@ -47,37 +46,10 @@ func TestLevel(t *testing.T) {
 		defaultLevel.AddEntity(entity)
 	}
 
-	//for i := 0; i < 30; i++ {
-	//	entity := defaultLevel.CreateEmptyEntity("test", "test1level")
-	//	entity.AddComponent(NewCollider(collision.NewSphereCollider(0.5))) // 크기1
-	//	entity.AddComponent(NewTransform())
-	//	entity.AddComponent(NewVision(200)) // 시야 테스트
-	//
-	//	x := float64(math64.RandInt(min, max))
-	//	y := float64(math64.RandInt(ymin, ymax))
-	//	z := float64(math64.RandInt(min, max))
-	//	entity.Transform().SetPosition(vector3.Vector3{X: x, Y: y, Z: z})
-	//
-	//	defaultLevel.AddEntity(entity)
-	//}
-
-	//for i := 0; i < 100; i++ {
-	//	entity := defaultLevel.CreateEmptyEntity("test", "test1level")
-	//	entity.AddComponent(NewCollider(collision.NewSphereCollider(300))) // 크기1
-	//	entity.AddComponent(NewTransform())
-	//
-	//	x := float64(math64.RandInt(min, max))
-	//	y := float64(math64.RandInt(ymin, ymax))
-	//	z := float64(math64.RandInt(min, max))
-	//	entity.Transform().SetPosition(vector3.Vector3{X: x, Y: y, Z: z})
-	//
-	//	defaultLevel.AddEntity(entity)
-	//}
-
 	end := time.Now()
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 10000; i++ {
 		start := time.Now()
-		defaultLevel.Update(int(start.Sub(end).Milliseconds()))
+		defaultLevel.update(int(start.Sub(end).Milliseconds()))
 		end = time.Now()
 
 		t.Log("update delay", end.Sub(start).Milliseconds())
